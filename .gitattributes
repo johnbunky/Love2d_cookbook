@@ -1,0 +1,4 @@
+# Force LF for source files
+*.lua text eol=lf
+*.md  text eol=lf
+*.txt text eol=lf
