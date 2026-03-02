@@ -58,10 +58,10 @@ end
 local selectedIdx = 1
 local scrollY     = 0
 local W, H
-local lineH       = 36
-local startY      = 130
-local VISIBLE_H   = 430
-local itemW       = 340   -- clickable item width (centered)
+local lineH       = 40    -- taller rows = easier to tap on mobile
+local startY      = 0     -- computed in enter()
+local VISIBLE_H   = 0     -- computed in enter()
+local itemW       = 0     -- computed in enter()
 
 -- Touch scroll state
 local touch = {
@@ -73,13 +73,19 @@ local touch = {
 }
 
 function Menu.enter()
-    W = love.graphics.getWidth()
-    H = love.graphics.getHeight()
+    W        = love.graphics.getWidth()
+    H        = love.graphics.getHeight()
+    -- Responsive layout: title takes ~18%, rest is list
+    startY   = math.floor(H * 0.18)
+    VISIBLE_H= H - startY - 10   -- all remaining screen
+    itemW    = math.min(500, math.floor(W * 0.85))
     selectedIdx = 1
     scrollY     = 0
 end
 
 function Menu.exit() end
+
+local padScrollAcc = 0  -- accumulator for analog stick scroll
 
 function Menu.update(dt)
     -- Mouse wheel scroll
@@ -87,7 +93,27 @@ function Menu.update(dt)
         scrollY = scrollY - Input.mouseWheelY * lineH * 2
         local maxScroll = math.max(0, #entries * lineH - VISIBLE_H)
         scrollY = math.max(0, math.min(scrollY, maxScroll))
-        -- update selectedIdx to match hovered item after scroll
+    end
+
+    -- Gamepad left stick scroll
+    for _, js in ipairs(love.joystick.getJoysticks()) do
+        if js:isGamepad() then
+            local axis = js:getGamepadAxis("lefty")
+            if math.abs(axis) > 0.2 then
+                padScrollAcc = padScrollAcc + axis * 300 * dt
+                if math.abs(padScrollAcc) >= lineH then
+                    local steps = math.floor(math.abs(padScrollAcc) / lineH)
+                    local dir   = padScrollAcc > 0 and 1 or -1
+                    for _ = 1, steps do
+                        selectedIdx = ((selectedIdx - 1 + dir + #selectable) % #selectable) + 1
+                    end
+                    scrollToSelected()
+                    padScrollAcc = padScrollAcc - steps * lineH * dir
+                end
+            else
+                padScrollAcc = 0
+            end
+        end
     end
 
     -- Hover: find which selectable item mouse is over
@@ -109,14 +135,14 @@ end
 function Menu.draw()
     -- Title
     love.graphics.setColor(1, 1, 1)
-    love.graphics.printf("== L?2D COOKBOOK ==", 0, 30, W, "center")
+    love.graphics.printf("== L?2D COOKBOOK ==", 0, startY * 0.15, W, "center")
     love.graphics.setColor(0.5, 0.5, 0.5)
     love.graphics.printf(
-        "??/ scroll navigate     ENTER / click launch     ESC quit",
-        0, 70, W, "center")
+        "^v / stick scroll     ENTER / tap launch     ESC quit",
+        0, startY * 0.42, W, "center")
     love.graphics.setColor(0.3, 0.3, 0.35)
     love.graphics.printf("[ " .. selectedIdx .. " / " .. #selectable .. " ]",
-        0, 100, W, "center")
+        0, startY * 0.68, W, "center")
 
     -- Clipping
     love.graphics.setScissor(0, startY, W, VISIBLE_H)
@@ -255,11 +281,19 @@ function Menu.touchreleased(id, x, y)
 end
 
 function Menu.gamepadpressed(joystick, button)
-    if button == "dpup" then
+    if button == "dpup" or button == "leftshoulder" then
         selectedIdx = (selectedIdx - 2) % #selectable + 1
         scrollToSelected()
-    elseif button == "dpdown" then
+    elseif button == "dpdown" or button == "rightshoulder" then
         selectedIdx = selectedIdx % #selectable + 1
+        scrollToSelected()
+    elseif button == "dpleft" then
+        -- page up
+        selectedIdx = math.max(1, selectedIdx - 5)
+        scrollToSelected()
+    elseif button == "dpright" then
+        -- page down
+        selectedIdx = math.min(#selectable, selectedIdx + 5)
         scrollToSelected()
     elseif button == "a" or button == "start" then
         launch()

@@ -1,4 +1,4 @@
-.# LOVE2D Game Development Cookbook
+# LOVE2D Game Development Cookbook
 
 A comprehensive, interactive reference for LOVE2D game development. Every system and pattern a 2D game needs — built from scratch, fully documented, and runnable as live examples.
 
