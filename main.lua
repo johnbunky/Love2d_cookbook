@@ -143,6 +143,7 @@ function love.keypressed(key)
 end
 
 function love.mousepressed(x, y, button)
+    if isTouchDevice then return end  -- Android fires both; touch handles it
     Gamestate.mousepressed(x, y, button)
 end
 
@@ -154,7 +155,10 @@ function love.mousereleased(x, y, button)
     Gamestate.mousereleased(x, y, button)
 end
 
+local isTouchDevice = false  -- set on first touch, used by states
+
 function love.touchpressed(id, x, y, dx, dy, pressure)
+    isTouchDevice = true
     Input.touchpressed(id, x, y)
     Gamestate.touchpressed(id, x, y, dx, dy, pressure)
 end
