@@ -65,12 +65,13 @@ local itemW       = 0     -- computed in enter()
 
 -- Touch scroll state
 local touch = {
-    id        = nil,   -- active touch ID
-    startY    = 0,     -- Y when finger went down
-    scrollY0  = 0,     -- scrollY when finger went down
-    moved     = false, -- did finger drag?
-    tapIdx    = nil,   -- which item was tapped
+    id        = nil,
+    startY    = 0,
+    scrollY0  = 0,
+    moved     = false,
+    tapIdx    = nil,
 }
+local isTouchDevice = false  -- set true on first touch, disables mouse hover
 
 function Menu.enter()
     W        = love.graphics.getWidth()
@@ -116,8 +117,8 @@ function Menu.update(dt)
         end
     end
 
-    -- Hover: find which selectable item mouse is over
-    if Input.mouseX > 0 then
+    -- Hover: find which selectable item mouse is over (disabled on touch devices)
+    if Input.mouseX > 0 and not isTouchDevice then
         local mx, my = Input.mouseX, Input.mouseY
         for si, ei in ipairs(selectable) do
             local ey = startY + (ei-1) * lineH - scrollY
@@ -228,7 +229,7 @@ function Menu.mousepressed(x, y, button)
 end
 
 function Menu.touchpressed(id, x, y)
-    -- Start tracking this touch for scroll vs tap detection
+    isTouchDevice = true
     touch.id       = id
     touch.startY   = y
     touch.scrollY0 = scrollY
