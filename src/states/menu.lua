@@ -76,22 +76,27 @@ local touch = {
     hoverIdx = nil,    -- item currently under finger
 }
 
-function Menu.enter()
+local function updateLayout()
     W        = love.graphics.getWidth()
     H        = love.graphics.getHeight()
-    -- Responsive layout: title takes ~18%, rest is list
     startY   = math.floor(H * 0.18)
-    VISIBLE_H= H - startY - 10   -- all remaining screen
+    VISIBLE_H= H - startY - 10
     itemW    = math.min(500, math.floor(W * 0.85))
+end
+
+function Menu.enter()
+    updateLayout()
     selectedIdx = 1
     scrollY     = 0
+    Log.info("menu W="..W.." H="..H.." startY="..startY.." VH="..VISIBLE_H)
 end
 
 function Menu.exit() end
 
-local padScrollAcc = 0  -- accumulator for analog stick scroll
+local padScrollAcc = 0
 
 function Menu.update(dt)
+    updateLayout()
     -- Mouse wheel scroll
     if Input.mouseWheelY ~= 0 then
         scrollY = scrollY - Input.mouseWheelY * lineH * 2
@@ -137,6 +142,7 @@ function Menu.update(dt)
 end
 
 function Menu.draw()
+    updateLayout()
     -- Title
     love.graphics.setColor(1, 1, 1)
     love.graphics.printf("== L?2D COOKBOOK ==", 0, startY * 0.15, W, "center")
@@ -149,7 +155,10 @@ function Menu.draw()
         0, startY * 0.68, W, "center")
 
     -- Clipping
-    love.graphics.setScissor(0, startY, W, VISIBLE_H)
+    -- Scissor must be in real screen pixels, not virtual
+    local sc = Scale.factor()
+    local sox, soy = Scale.offset()
+    love.graphics.setScissor(sox, soy + startY * sc, W * sc, VISIBLE_H * sc)
 
     for i, entry in ipairs(entries) do
         local y  = startY + (i-1) * lineH - scrollY

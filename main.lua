@@ -6,6 +6,8 @@
 Gamestate   = require("src.gamestate")
 Input       = require("src.input")
 Transition  = require("src.systems.transition")
+Scale       = require("src.systems.scale")
+Log         = require("src.systems.log")
 
 local MenuState     = require("src.states.menu")
 local PauseState    = require("src.states.pause")
@@ -110,7 +112,25 @@ States = {
     settings_persist    = SettingsPersist,
 }
 
+-- Override getWidth/getHeight so all examples return virtual resolution.
+-- Real screen size still accessible via love.window.getMode().
+local _getWidth  = love.graphics.getWidth
+local _getHeight = love.graphics.getHeight
+love.graphics.getWidth  = function() return Scale and Scale.width()  or _getWidth()  end
+love.graphics.getHeight = function() return Scale and Scale.height() or _getHeight() end
+
 function love.load()
+    -- Use actual pixel dimensions for initial scale (avoids DPI issue with getMode)
+    local rw = love.graphics.getPixelWidth  and love.graphics.getPixelWidth()  or love.window.getMode()
+    local rh = love.graphics.getPixelHeight and love.graphics.getPixelHeight() or select(2, love.window.getMode())
+    Scale.init(960, 540)
+    Scale.update(rw, rh)
+    Log.info("OS:", love.system.getOS())
+    Log.info("window.getMode:", love.window.getMode())
+    Log.info("pixel size:", rw, "x", rh)
+    Log.info("virtual:", Scale.width(), "x", Scale.height())
+    Log.info("scale factor:", Scale.factor())
+    Log.info("IS_MOBILE:", tostring(IS_MOBILE))
     Gamestate.switch(States.menu)
 end
 
@@ -122,8 +142,17 @@ function love.update(dt)
 end
 
 function love.draw()
+    Scale.apply()
     Gamestate.draw()
     Transition.draw()
+    Scale.clear()
+    Scale.drawBars()
+    Log.draw()
+end
+
+function love.resize(w, h)
+    Scale.update(w, h)
+    Log.info("resize:", w, "x", h, "scale:", Scale.factor())
 end
 
 function love.wheelmoved(x, y)
@@ -139,6 +168,8 @@ function love.keypressed(key)
             Gamestate.switch(States.menu)
         end
     end
+    if key == "f11" then Scale.toggleFullscreen() return end
+    if key == "f2"  then Log.toggle() return end
     Gamestate.keypressed(key)
 end
 
@@ -149,31 +180,37 @@ IS_MOBILE = love.system.getOS() == "Android"
           or love.system.getOS() == "iOS"
 
 function love.mousepressed(x, y, button)
-    Gamestate.mousepressed(x, y, button)
+    local vx, vy = Scale.toVirtual(x, y)
+    Gamestate.mousepressed(vx, vy, button)
 end
 
 function love.mousemoved(x, y, dx, dy)
-    Input.mouseX, Input.mouseY = x, y
-    Gamestate.mousemoved(x, y, dx, dy)
+    local vx, vy = Scale.toVirtual(x, y)
+    Input.mouseX, Input.mouseY = vx, vy
+    Gamestate.mousemoved(vx, vy, dx, dy)
 end
 
 function love.mousereleased(x, y, button)
-    Gamestate.mousereleased(x, y, button)
+    local vx, vy = Scale.toVirtual(x, y)
+    Gamestate.mousereleased(vx, vy, button)
 end
 
 function love.touchpressed(id, x, y, dx, dy, pressure)
-    Input.touchpressed(id, x, y)
-    Gamestate.touchpressed(id, x, y, dx, dy, pressure)
+    local vx, vy = Scale.toVirtual(x, y)
+    Input.touchpressed(id, vx, vy)
+    Gamestate.touchpressed(id, vx, vy, dx, dy, pressure)
 end
 
 function love.touchreleased(id, x, y)
-    Input.touchreleased(id, x, y)
-    Gamestate.touchreleased(id, x, y)
+    local vx, vy = Scale.toVirtual(x, y)
+    Input.touchreleased(id, vx, vy)
+    Gamestate.touchreleased(id, vx, vy)
 end
 
 function love.touchmoved(id, x, y)
-    Input.touchmoved(id, x, y)
-    Gamestate.touchmoved(id, x, y)
+    local vx, vy = Scale.toVirtual(x, y)
+    Input.touchmoved(id, vx, vy)
+    Gamestate.touchmoved(id, vx, vy)
 end
 
 function love.gamepadpressed(joystick, button)
