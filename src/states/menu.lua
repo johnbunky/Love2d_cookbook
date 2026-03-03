@@ -63,15 +63,18 @@ local startY      = 0     -- computed in enter()
 local VISIBLE_H   = 0     -- computed in enter()
 local itemW       = 0     -- computed in enter()
 
--- Touch scroll state
+-- Touch state — three separate concerns:
+-- 1. scroll: finger drag moves the list
+-- 2. hover:  finger position highlights item under finger
+-- 3. select: clean tap (no drag) launches item
 local touch = {
-    id        = nil,
-    startY    = 0,
-    scrollY0  = 0,
-    moved     = false,
-    tapIdx    = nil,
+    id       = nil,    -- active finger id
+    startX   = 0,
+    startY   = 0,
+    scrollY0 = 0,
+    dragging = false,  -- true once finger moved > threshold
+    hoverIdx = nil,    -- item currently under finger
 }
-local isTouchDevice = false  -- set true on first touch, disables mouse hover
 
 function Menu.enter()
     W        = love.graphics.getWidth()
@@ -156,17 +159,27 @@ function Menu.draw()
             love.graphics.setColor(0.35, 0.5, 0.85)
             love.graphics.printf(entry.header, 0, y + 6, W, "center")
         else
-            local isSelected = selectable[selectedIdx] == i
-            local isHover    = Input.isHover(ex, y, itemW, lineH)
-                               and y >= startY and y < startY + VISIBLE_H
+            -- touch.hoverIdx highlights finger position; selectedIdx for keyboard/gamepad
+            local si = 0
+            for s, ei in ipairs(selectable) do if ei == i then si = s break end end
+            local isSelected = (si == selectedIdx)
+            local isTouchHover = (touch.hoverIdx ~= nil and si == touch.hoverIdx)
+            local isMouseHover = (touch.id == nil)
+                                 and Input.isHover(ex, y, itemW, lineH)
+                                 and y >= startY and y < startY + VISIBLE_H
 
-            if isSelected then
-                -- highlight bg
+            if isTouchHover then
+                -- finger is currently over this item
                 love.graphics.setColor(0.15, 0.35, 0.2)
                 love.graphics.rectangle("fill", ex, y+2, itemW, lineH-4, 4, 4)
                 love.graphics.setColor(0.2, 0.85, 0.4)
                 love.graphics.printf("> " .. entry.label .. " <", 0, y + 8, W, "center")
-            elseif isHover then
+            elseif isSelected then
+                love.graphics.setColor(0.15, 0.35, 0.2)
+                love.graphics.rectangle("fill", ex, y+2, itemW, lineH-4, 4, 4)
+                love.graphics.setColor(0.2, 0.85, 0.4)
+                love.graphics.printf("> " .. entry.label .. " <", 0, y + 8, W, "center")
+            elseif isMouseHover then
                 love.graphics.setColor(0.15, 0.2, 0.25)
                 love.graphics.rectangle("fill", ex, y+2, itemW, lineH-4, 4, 4)
                 love.graphics.setColor(0.9, 0.9, 0.9)
@@ -228,57 +241,57 @@ function Menu.mousepressed(x, y, button)
     if button == 1 then launch() end
 end
 
-function Menu.touchpressed(id, x, y)
-    isTouchDevice = true
-    touch.id       = id
-    touch.startY   = y
-    touch.scrollY0 = scrollY
-    touch.moved    = false
-
-    -- Find which item was tapped
+-- Find which selectable index is at screen position y
+local function itemAtY(y)
     local ex = (W - itemW) / 2
-    touch.tapIdx = nil
     for si, ei in ipairs(selectable) do
         local ey = startY + (ei-1) * lineH - scrollY
-        if y >= ey and y < ey + lineH
-        and x >= ex and x < ex + itemW
-        and ey >= startY and ey < startY + VISIBLE_H then
-            touch.tapIdx = si
-            selectedIdx  = si
-            break
+        if ey >= startY and ey < startY + VISIBLE_H
+        and y >= ey and y < ey + lineH then
+            return si
         end
     end
+    return nil
 end
 
+-- STEP 1: finger down — record start position only
+function Menu.touchpressed(id, x, y)
+    if touch.id then return end   -- ignore second finger
+    touch.id       = id
+    touch.startX   = x
+    touch.startY   = y
+    touch.scrollY0 = scrollY
+    touch.dragging = false
+    touch.hoverIdx = itemAtY(y)
+end
+
+-- STEP 2: finger moves — scroll the list, update hover
 function Menu.touchmoved(id, x, y)
     if id ~= touch.id then return end
     local dy = touch.startY - y
-    if math.abs(dy) > 8 then touch.moved = true end
-    if touch.moved then
+    -- Start dragging after 10px threshold
+    if math.abs(dy) > 10 then touch.dragging = true end
+    if touch.dragging then
+        -- Scroll
         local maxScroll = math.max(0, #entries * lineH - VISIBLE_H)
         scrollY = math.max(0, math.min(touch.scrollY0 + dy, maxScroll))
-        -- Update selection to hovered item while scrolling
-        local ex = (W - itemW) / 2
-        for si, ei in ipairs(selectable) do
-            local ey = startY + (ei-1) * lineH - scrollY
-            if y >= ey and y < ey + lineH
-            and x >= ex and x < ex + itemW
-            and ey >= startY and ey < startY + VISIBLE_H then
-                selectedIdx = si
-                break
-            end
-        end
+        touch.hoverIdx = nil   -- no hover while scrolling
+    else
+        -- Not dragging yet — update hover to finger position
+        touch.hoverIdx = itemAtY(y)
     end
 end
 
+-- STEP 3: finger up — launch only if no drag happened
 function Menu.touchreleased(id, x, y)
     if id ~= touch.id then return end
-    -- Only launch if finger didn't drag
-    if not touch.moved and touch.tapIdx then
-        selectedIdx = touch.tapIdx
+    if not touch.dragging and touch.hoverIdx then
+        selectedIdx = touch.hoverIdx
         launch()
     end
-    touch.id = nil
+    touch.id       = nil
+    touch.hoverIdx = nil
+    touch.dragging = false
 end
 
 function Menu.gamepadpressed(joystick, button)
