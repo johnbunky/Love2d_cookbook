@@ -120,8 +120,8 @@ function Menu.update(dt)
         end
     end
 
-    -- Hover: find which selectable item mouse is over (disabled on touch devices)
-    if Input.mouseX > 0 and not isTouchDevice then
+    -- Hover: mouse only, skip on mobile
+    if not IS_MOBILE and Input.mouseX > 0 then
         local mx, my = Input.mouseX, Input.mouseY
         for si, ei in ipairs(selectable) do
             local ey = startY + (ei-1) * lineH - scrollY
@@ -164,7 +164,8 @@ function Menu.draw()
             for s, ei in ipairs(selectable) do if ei == i then si = s break end end
             local isSelected = (si == selectedIdx)
             local isTouchHover = (touch.hoverIdx ~= nil and si == touch.hoverIdx)
-            local isMouseHover = (touch.id == nil)
+            local isMouseHover = (not IS_MOBILE)
+                                 and (touch.id == nil)
                                  and Input.isHover(ex, y, itemW, lineH)
                                  and y >= startY and y < startY + VISIBLE_H
 
@@ -238,6 +239,7 @@ function Menu.keypressed(key)
 end
 
 function Menu.mousepressed(x, y, button)
+    if IS_MOBILE then return end
     if button == 1 then launch() end
 end
 

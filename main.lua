@@ -143,23 +143,21 @@ function love.keypressed(key)
 end
 
 -- On Android/iOS, LOVE fires mousepressed AND touchpressed for the same tap.
--- Skip all mouse routing on mobile — touch callbacks handle everything.
-local IS_MOBILE = love.system.getOS() == "Android"
-               or love.system.getOS() == "iOS"
+-- We let mouse events through normally for examples that use them,
+-- but individual states can check IS_MOBILE to guard against duplicates.
+IS_MOBILE = love.system.getOS() == "Android"
+          or love.system.getOS() == "iOS"
 
 function love.mousepressed(x, y, button)
-    if IS_MOBILE then return end
     Gamestate.mousepressed(x, y, button)
 end
 
 function love.mousemoved(x, y, dx, dy)
-    if IS_MOBILE then return end
     Input.mouseX, Input.mouseY = x, y
     Gamestate.mousemoved(x, y, dx, dy)
 end
 
 function love.mousereleased(x, y, button)
-    if IS_MOBILE then return end
     Gamestate.mousereleased(x, y, button)
 end
 
