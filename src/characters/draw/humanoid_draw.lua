@@ -59,9 +59,9 @@ function M.render(c, hints, camera)
     local dx, dy
     if vlen > 4 then
         dx, dy = vx/vlen, vy/vlen
-        c.lastDx, c.lastDy = dx, dy
+        c.lastDx, c.lastDy = dx, dy   -- remember last movement direction
     else
-        dx, dy = c.lastDx or f, c.lastDy or 0
+        dx, dy = c.lastDx or f, c.lastDy or 0   -- hold orientation after stopping
     end
     local px, py = -dy, dx   -- hip bar perpendicular
 
@@ -134,34 +134,15 @@ function M.render(c, hints, camera)
     local nkx,nky,nkz = IK.solveLeg(hn_x,hn_y,hz, fn.x,fn.y,fn_fz, rig.ul,rig.ll, dx,dy)
     local fkx,fky,fkz = IK.solveLeg(hf_x,hf_y,hz, ff.x,ff.y,ff_fz, rig.ul,rig.ll, dx,dy)
 
-    -- arm IK
-    local run_n    = hints.run_n    or 0
-    local arm_bend = p.arm_bend     or 0.30
-    local run_bend = p.run_arm_bend or 0.65
-    local elbow_in = arm_bend + (run_bend - arm_bend) * run_n
-
-    local as      = swing * f
-    local arm_len = rig.ua + rig.la
-
-    -- hand targets anchored to spine CENTRE (sx,sy), not shoulder edge
-    -- this decouples arm swing from shoulder bar rotation
-    local swing_reach = arm_len * 0.75   -- how far hands travel forward/back
-    local nhx_t = sx + dx*(as * swing_reach);  local nhy_t = sy + dy*(as * swing_reach)
-    local nhz_t = sz - arm_len * 0.82
-    local fhx_t = sx + dx*(as*-swing_reach);   local fhy_t = sy + dy*(as*-swing_reach)
-    local fhz_t = sz - arm_len * 0.82
-
-    -- per-arm inward pole: use hip perpendicular (px,py) not rotated shoulder
-    -- near arm on -px side → inward = +px, far arm on +px side → inward = -px
-    local n_pole_x =  px * elbow_in + dx * 0.35 * run_n
-    local n_pole_y =  py * elbow_in + dy * 0.35 * run_n
-    local f_pole_x = -px * elbow_in + dx * 0.35 * run_n
-    local f_pole_y = -py * elbow_in + dy * 0.35 * run_n
-
-    local nex,ney,nez = IK.solveLeg(sn_x,sn_y,sz, nhx_t,nhy_t,nhz_t, rig.ua,rig.la, n_pole_x,n_pole_y)
-    local fex,fey,fez = IK.solveLeg(sf_x,sf_y,sz, fhx_t,fhy_t,fhz_t, rig.ua,rig.la, f_pole_x,f_pole_y)
-    local nhx,nhy,nhz = nhx_t,nhy_t,nhz_t
-    local fhx,fhy,fhz = fhx_t,fhy_t,fhz_t
+    -- arms: FK chain from shoulder endpoint.
+    -- Simple forward-kinematics avoids IK pole-vector issues entirely.
+    -- Elbow z = shoulder_z - ua, hand z = elbow_z - la (arms hang straight down at rest).
+    -- Swing offset (as) moves elbow and hand forward/back along movement direction.
+    local as  = swing * f
+    local nex = sn_x + dx*(as* 35);  local ney = sn_y + dy*(as* 35);  local nez = sz - rig.ua
+    local nhx = nex  + dx*(as* 18);  local nhy = ney  + dy*(as* 18);  local nhz = nez - rig.la
+    local fex = sf_x + dx*(as*-35);  local fey = sf_y + dy*(as*-35);  local fez = sz - rig.ua
+    local fhx = fex  + dx*(as*-18);  local fhy = fey  + dy*(as*-18);  local fhz = fez - rig.la
 
     love.graphics.setLineWidth(3)
 
@@ -243,28 +224,49 @@ function M.render(c, hints, camera)
             love.graphics.setColor(1,1,1,0.6)
             love.graphics.print(string.format("%.0f,%.0f,%.0f",wx,wy,wz), sx+4,sy-5, 0,0.65)
         end
-        dbdot(hn_x,hn_y,hz,   6, 1,1,0)
-        dbdot(hf_x,hf_y,hz,   6, 0.7,0.7,0)
-        dbdot(fn.x,fn.y,fn.z, 6, 0,1,1)
-        dbdot(ff.x,ff.y,ff.z, 6, 0.3,0.3,1)
-        dbdot(nkx,nky,nkz,    5, 0,1,0)
-        dbdot(fkx,fky,fkz,    5, 1,0,0)
+
+        -- LEGS
+        dbdot(hn_x,hn_y,hz,   6, 1,1,0)       -- near hip attach  (yellow)
+        dbdot(hf_x,hf_y,hz,   6, 0.7,0.7,0)   -- far  hip attach  (dark yellow)
+        dbdot(fn.x,fn.y,fn.z, 6, 0,1,1)        -- near foot        (cyan)
+        dbdot(ff.x,ff.y,ff.z, 6, 0.3,0.3,1)   -- far  foot        (blue)
+        dbdot(nkx,nky,nkz,    5, 0,1,0)        -- near knee        (green)
+        dbdot(fkx,fky,fkz,    5, 1,0,0)        -- far  knee        (red)
+
+        -- ARMS (FK)
+        dbdot(sn_x,sn_y,sz,   6, 1,0.5,0)      -- near shoulder attach  (orange)
+        dbdot(sf_x,sf_y,sz,   6, 0.6,0.3,0)    -- far  shoulder attach  (dark orange)
+        dbdot(nex,ney,nez,     5, 1,0,1)        -- near elbow            (magenta)
+        dbdot(fex,fey,fez,     5, 0.6,0,0.6)   -- far  elbow            (dark magenta)
+        dbdot(nhx,nhy,nhz,     5, 0.5,1,0.5)   -- near hand             (light green)
+        dbdot(fhx,fhy,fhz,     5, 0.2,0.6,0.2) -- far  hand             (dark green)
+
+        -- velocity arrow
         love.graphics.setColor(1,0.5,0,0.9)
         love.graphics.setLineWidth(2)
-        local ax,ay = camera:toScreen(hx,hy,hz)
+        local ax,ay   = camera:toScreen(hx,hy,hz)
         local bx2,by2 = camera:toScreen(hx+c.vel.x*0.3, hy+c.vel.y*0.3, hz)
         love.graphics.line(ax,ay, bx2,by2)
+
         love.graphics.setColor(1,1,1,0.85)
         love.graphics.print(string.format(
             "facing:%+d  vx:%+.0f vy:%+.0f\n"..
             "dx:%.2f dy:%.2f  near:%s\n"..
-            "hn(%.0f,%.0f) hf(%.0f,%.0f)\n"..
-            "fn(%.0f,%.0f,%.0f) ff(%.0f,%.0f,%.0f)\n"..
-            "nk(%.0f,%.0f,%.0f) fk(%.0f,%.0f,%.0f)",
+            "--- LEGS ---\n"..
+            "hn(%.0f,%.0f,%.0f)  hf(%.0f,%.0f,%.0f)\n"..
+            "fn(%.0f,%.0f,%.0f)  ff(%.0f,%.0f,%.0f)\n"..
+            "nk(%.0f,%.0f,%.0f)  fk(%.0f,%.0f,%.0f)\n"..
+            "--- ARMS (FK) ---\n"..
+            "sn(%.0f,%.0f,%.0f)  sf(%.0f,%.0f,%.0f)\n"..
+            "ne(%.0f,%.0f,%.0f)  fe(%.0f,%.0f,%.0f)\n"..
+            "nh(%.0f,%.0f,%.0f)  fh(%.0f,%.0f,%.0f)",
             f, c.vel.x, c.vel.y, dx, dy, tostring(left_near),
-            hn_x,hn_y, hf_x,hf_y,
+            hn_x,hn_y,hz,  hf_x,hf_y,hz,
             fn.x,fn.y,fn.z, ff.x,ff.y,ff.z,
-            nkx,nky,nkz, fkx,fky,fkz
+            nkx,nky,nkz,    fkx,fky,fkz,
+            sn_x,sn_y,sz,  sf_x,sf_y,sz,
+            nex,ney,nez,    fex,fey,fez,
+            nhx,nhy,nhz,    fhx,fhy,fhz
         ), 8, 75)
     end
 

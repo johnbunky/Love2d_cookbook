@@ -24,6 +24,7 @@ function walk.update(c, dt)
     c.speed_n = speed_n
     c.run_n   = run_n
 
+    -- remember last movement direction so body holds orientation after stopping
     if spd > 4 then
         c.lastDx = c.vel.x / spd
         c.lastDy = c.vel.y / spd
@@ -48,44 +49,54 @@ function walk.draw(c, camera)
     local function blend(a, b) return a + (b - a) * run_n end
 
     local arm_swing = p.arm_swing or 0
-    local t_arm  = math.sin(ph) * blend(arm_swing, p.run_arm_pump or arm_swing*1.6) * speed_n
-    local bob_amp  = blend(p.walk_bob  or 6,   p.run_bob  or 11)
-    local sway_amp = blend(p.walk_sway or 2.5, p.run_sway or 1.2)
+    local bob_amp   = blend(p.walk_bob  or 6,   p.run_bob  or 11)
+    local sway_amp  = blend(p.walk_sway or 2.5, p.run_sway or 1.2)
 
     local t_bob  = math.abs(math.sin(ph)) * bob_amp  * speed_n
-    local t_sway = math.sin(ph) * sway_amp * speed_n
-    local t_lean = (p.lean or 0.12) * math.abs(c.vel.x + c.vel.y * 0.5) / (p.max_vx or 220)
-    t_lean = t_lean * blend(1, p.run_lean and p.run_lean / (p.lean or 0.12) or 2)
-
-    local wave_amp = blend(p.walk_wave or 4.0, 0)
+    -- sway uses c.facing so hip swings in the correct screen direction regardless
+    -- of whether the character last moved in x or depth
+    local t_sway = math.cos(ph) * sway_amp * speed_n * c.facing
+    local wave_amp = p.walk_wave or sway_amp * 0.6
     local t_wave   = math.sin(ph) * wave_amp * speed_n
+    local t_lean   = speed_n * blend(p.lean or 0, p.run_lean or (p.lean or 0) * 2.2)
 
-    local counter_amp = blend(p.walk_counter or 0.08, p.run_counter or 0.15)
-    local t_shoulder  = -math.sin(ph) * counter_amp * speed_n
+    -- arm swing: drive spring target, blend with direct value
+    local t_arm_direct = math.sin(ph) * blend(arm_swing, p.run_arm_pump or arm_swing*1.6) * speed_n
+
+    local arm_k  = p.arm_stiffness  or 10
+    local arm_d  = p.arm_damping    or 6
+    local body_k = p.body_stiffness or 14
+    local body_d = p.body_damping   or 9
 
     if sp then
-        sp.arm:update(dt,  t_arm,  p.arm_stiffness  or 10, p.arm_damping  or 6)
-        sp.bob:update(dt,  t_bob,  p.body_stiffness or 14, p.body_damping or 9)
-        sp.sway:update(dt, t_sway, p.body_stiffness or 14, p.body_damping or 9)
-        sp.lean:update(dt, t_lean, p.body_stiffness or 14, p.body_damping or 9)
+        sp.arm:update(dt,  t_arm_direct, arm_k, arm_d)
+        sp.lean:update(dt, t_lean,       body_k, body_d)
 
-        -- breast physics (only when profile.breast is defined)
         if p.breast then
-            local t_breast = sp.bob.velocity * 0.012
+            local t_breast = sp.bob and sp.bob.velocity * 0.012 or 0
             sp.breast_l:update(dt, -t_breast, 18, 7)
             sp.breast_r:update(dt,  t_breast, 18, 7)
         end
     end
 
+    -- at speed: use direct value (full amplitude); stopping: spring settles to zero
+    local arm_val  = t_arm_direct * speed_n + (sp and sp.arm.value or 0) * (1 - speed_n)
+    local lean_val = sp and sp.lean.value or t_lean
+
+    local cnt             = blend(p.walk_counter or 0.08, p.run_counter or 0.15)
+    local shoulder_rotate = -t_sway * cnt
+    local hip_rot         = (p.walk_hip_rotation or 0) * math.cos(ph) * speed_n
+
     c.draw.render(c, {
-        swingAngle    = sp and sp.arm.value  or t_arm,
-        bob           = sp and sp.bob.value  or t_bob,
-        sway          = sp and sp.sway.value or t_sway,
-        lean          = sp and sp.lean.value or t_lean,
-        wave          = t_wave,
-        shoulderRotate= t_shoulder,
-        speed_n       = speed_n,
-        run_n         = run_n,
+        swingAngle     = arm_val,
+        bob            = t_bob,
+        sway           = t_sway,
+        wave           = t_wave,
+        lean           = lean_val,
+        shoulderRotate = shoulder_rotate,
+        hipRotate      = hip_rot,
+        speed_n        = speed_n,
+        run_n          = run_n,
     }, camera)
 end
 
