@@ -1,7 +1,7 @@
 -- draw/bird_draw.lua
 -- Horizontal body, backward-bending knees, folded wings, beak.
 
-local IK = require "engine.ik"
+local IK = require "src.systems.ik"
 local M  = {}
 
 local function seg(cam, x1,y1,z1, x2,y2,z2)

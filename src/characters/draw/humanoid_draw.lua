@@ -1,7 +1,7 @@
 -- draw/humanoid_draw.lua
 -- Humanoid with hip bar, shoulder bar, and limbs attached to their edges.
 
-local IK = require "engine.ik"
+local IK = require "src.systems.ik"
 local M  = {}
 
 local function seg(cam, x1,y1,z1, x2,y2,z2)

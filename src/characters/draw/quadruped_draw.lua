@@ -2,7 +2,7 @@
 -- Four-legged body. Uses IK.solveLeg for correct 3D knees.
 -- Feet: 1=front-left, 2=front-right, 3=back-left, 4=back-right
 
-local IK = require "engine.ik"
+local IK = require "src.systems.ik"
 local M  = {}
 
 local function seg(cam, x1,y1,z1, x2,y2,z2)

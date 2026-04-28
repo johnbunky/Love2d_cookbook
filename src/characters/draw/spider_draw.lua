@@ -3,7 +3,7 @@
 -- Knee direction per leg: left-side legs have dir=+1, right-side dir=-1
 -- (all knees splay outward from the body)
 
-local IK = require "engine.ik"
+local IK = require "src.systems.ik"
 local M  = {}
 
 local function seg(cam, x1,y1,z1, x2,y2,z2)

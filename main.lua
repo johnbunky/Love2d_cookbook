@@ -59,6 +59,8 @@ local KeyboardMouseDemo = require("src.states.examples.keyboard_mouse_demo")
 local SaveLoad          = require("src.states.examples.save_load")
 local HighScore         = require("src.states.examples.high_score")
 local SettingsPersist   = require("src.states.examples.settings_persist")
+-- New
+local CharacterBasics   = require("src.states.examples.character_basics")
 
 States = {
     menu                = MenuState,
@@ -96,9 +98,6 @@ States = {
     basics_3d           = Basics3D,
     billboards          = Billboards,
     iso_topdown         = IsoTopdown,
-    save_load           = SaveLoad,
-    high_score          = HighScore,
-    settings_persist    = SettingsPersist,
     -- audio
     audio_demo          = AudioDemo,
     volume_control      = VolumeControl,
@@ -110,6 +109,8 @@ States = {
     save_load           = SaveLoad,
     high_score          = HighScore,
     settings_persist    = SettingsPersist,
+    -- New
+    character_basics    = CharacterBasics,
 }
 
 -- Override getWidth/getHeight so all examples return virtual resolution.
