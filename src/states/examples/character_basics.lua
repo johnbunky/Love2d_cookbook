@@ -1,6 +1,6 @@
 -- src/states/examples/character_basics.lua
 -- Demonstrates: procedural characters, IK leg stepping, spring physics,
---               finite state machine, 3-projection camera.
+--               finite state machine, 3-projection camera, terrain grid.
 --
 -- Controls:
 --   A / D          move left / right
@@ -13,6 +13,8 @@
 
 local Character = require "src.characters.character"
 local Camera3D  = require "src.systems.camera3d"
+local Grid      = require "src.systems.grid"
+local GridMesh  = require "src.characters.grid_mesh"
 local Utils     = require "src.utils"
 
 local Example = {}
@@ -20,17 +22,6 @@ local Example = {}
 -- ─── world ────────────────────────────────────────────────────────────────────
 local WORLD_W = 2400
 local WORLD_D = 300
-
--- Flat terrain — satisfies the floorAt interface the character system expects.
--- Swap this table for a grid/tilemap implementation to get slope tracking.
-local terrain = {
-    worldW  = WORLD_W,
-    worldD  = WORLD_D,
-    floorAt = function(self, x, y) return 0 end,
-}
-
--- ─── state ────────────────────────────────────────────────────────────────────
-local camera, player
 
 local PROFILES = {
     "man", "woman", "child", "troll",
@@ -43,8 +34,19 @@ local VIEW_LABELS = {
     isometric    = "iso",
 }
 
+-- ─── state ────────────────────────────────────────────────────────────────────
+local camera, player, terrain, gridMesh
+
 local function spawnPlayer(profileName)
     local c = Character.new(profileName, WORLD_W / 2)
+    -- snap to actual terrain height at spawn position
+    local fz = terrain:floorAt(c.pos.x, c.pos.y)
+    if fz then
+        c.floorZ  = fz
+        c.groundZ = fz + c.leg_len * (c.profile.stance_height or 1.0)
+        c.pos.z   = c.groundZ
+        c.stepper:reset(c.pos.x, c.pos.y, fz)
+    end
     camera:snapTo(c.pos.x, c.pos.y, c.pos.z)
     return c
 end
@@ -52,14 +54,35 @@ end
 -- ─── gamestate callbacks ──────────────────────────────────────────────────────
 function Example.enter()
     camera = Camera3D.new(WORLD_W, love.graphics.getHeight())
+
+    -- procedural terrain grid
+    local g = Grid.new({
+        x0         = 0,    y0 = -250,
+        cols       = 30,   rows = 10,
+        cell_w     = 80,   cell_h = 50,
+        height_amp = 50,
+        jitter     = 0.28,
+        seed       = 137,
+    })
+    gridMesh = GridMesh.new(g, { show_edges = true })
+
+    -- terrain adapter: wraps grid so characters use floorAt interface
+    terrain = {
+        worldW  = WORLD_W,
+        worldD  = WORLD_D,
+        floorAt = function(self, x, y) return g:floorAt(x, y) end,
+    }
+
     player = spawnPlayer("man")
     love.graphics.setBackgroundColor(0.07, 0.07, 0.10)
 end
 
 function Example.exit()
-    player = nil
-    camera = nil
-    love.graphics.setBackgroundColor(0.10, 0.10, 0.13)   -- cookbook default
+    player   = nil
+    camera   = nil
+    terrain  = nil
+    gridMesh = nil
+    love.graphics.setBackgroundColor(0.10, 0.10, 0.13)
 end
 
 function Example.update(dt)
@@ -70,13 +93,11 @@ function Example.update(dt)
     if love.keyboard.isDown("a") then player.inputX = -1 end
     if love.keyboard.isDown("d") then player.inputX =  1 end
 
-    -- depth input only meaningful when not in side-scroll
     if camera.view ~= "sidescroll" then
         if love.keyboard.isDown("w") then player.inputY = -1 end
         if love.keyboard.isDown("s") then player.inputY =  1 end
     end
 
-    -- sit is a held action (hold Q while seated to stay seated)
     player.inputSit = love.keyboard.isDown("q")
 
     -- ── update ───────────────────────────────────────────────────────────────
@@ -85,12 +106,8 @@ function Example.update(dt)
 end
 
 function Example.draw()
-    -- ── ground line ──────────────────────────────────────────────────────────
-    love.graphics.setColor(0.25, 0.25, 0.30)
-    love.graphics.setLineWidth(2)
-    local gx1, gy1 = camera:toScreen(0,       0, 0)
-    local gx2, gy2 = camera:toScreen(WORLD_W, 0, 0)
-    love.graphics.line(gx1, gy1, gx2, gy2)
+    -- ── terrain ──────────────────────────────────────────────────────────────
+    gridMesh:draw(camera)
 
     -- ── shadow ───────────────────────────────────────────────────────────────
     local elev = player.pos.z - player.groundZ
@@ -112,20 +129,17 @@ function Example.draw()
 end
 
 function Example.keypressed(key)
-    -- jump: triggered on keypress, not held
     if key == "space" then
         if player.sm:is("idle") or player.sm:is("walk") then
             player.sm:enter("jump")
         end
     end
 
-    -- cycle projection view
     if key == "v" then
         camera:nextView()
         camera:snapTo(player.pos.x, player.pos.y, player.pos.z)
     end
 
-    -- switch character  (keys 1–8)
     for i, name in ipairs(PROFILES) do
         if key == tostring(i) then
             player = spawnPlayer(name)
