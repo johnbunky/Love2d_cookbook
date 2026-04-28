@@ -1,311 +1,228 @@
-# LOVE2D Game Development Cookbook
+# LOVE2D Cookbook
 
-A comprehensive, interactive reference for LOVE2D game development. Every system and pattern a 2D game needs — built from scratch, fully documented, and runnable as live examples.
+A personal game-dev laboratory. Working examples you can run, inspect, and steal from.
+Not a tutorial. Not a framework. A workbench.
+
+> For quick code snippets see **[RECIPES.md](./RECIPES.md)**
 
 ---
 
 ## What This Is
 
-This is not a game — it is a **living cookbook**. Each menu item launches a self-contained, interactive example that demonstrates a specific system or technique. The goal is to have a single project you can open to answer the question *"how do I do X in LOVE2D?"* — and see it working immediately.
+An interactive browser of self-contained examples — each one demonstrates one mechanic,
+runs immediately, and shows its source. When you need something, you open it, see it
+working, copy the relevant part.
+
+The deeper modules (`src/systems/`, `src/characters/`) follow a **Selenide philosophy**:
+one require, one constructor, sensible defaults, full power underneath.
+The examples show them in action.
 
 ---
 
 ## Requirements
 
 - [LOVE2D](https://love2d.org/) 11.4 or newer
-- Windows, macOS, Linux, Android, or iOS
+- Windows, macOS, Linux, Android, iOS
 
 ---
 
 ## Running
 
 ```bash
-# From the project root
 love .
-
-# Or drag the folder onto the LOVE2D executable
-# Or package as .love file:
-zip -r cookbook.love . -x "*.git*"
+# or drag the folder onto the LOVE2D executable
 ```
+
+---
+
+## Starting a Game
+
+The fastest path from zero to something playable:
+
+**1. Copy the character demo as your game state**
+```bash
+cp src/states/examples/character_basics.lua src/states/my_game.lua
+```
+
+**2. Register it in `main.lua`**
+```lua
+local MyGame = require("src.states.my_game")
+-- in States table:
+my_game = MyGame,
+```
+
+**3. Strip what you don't need, change what you do**
+```lua
+-- different character:
+player = Character.new("spider", startX)
+
+-- different terrain:
+local g = Grid.new({ height_amp=80, seed=42 })
+
+-- second character:
+local partner = Character.new("man", startX + 200)
+partner:update(dt, terrain)
+partner:drawSelf(camera)
+```
+
+`character_basics.lua` already has character + terrain + camera + input wired correctly.
+It's your blank canvas — subtract and extend from there.
+
+For everything else, see **RECIPES.md**.
 
 ---
 
 ## Project Structure
 
 ```
-.
-├── conf.lua                  # LOVE2D configuration
-├── main.lua                  # Entry point, routes all LOVE callbacks
-├── assets/
-│   ├── fonts/
-│   ├── images/
-│   └── sounds/
-└── src/
-    ├── utils.lua             # Shared helpers (clamp, lerp, distance...)
-    ├── input.lua             # Unified input (keyboard, mouse, touch, gamepad)
-    ├── assets.lua            # Asset loader with caching
-    ├── gamestate.lua         # State machine (switch, resume, event routing)
-    ├── class.lua             # Simple OOP base class
-    ├── systems/              # Reusable, engine-agnostic systems
-    └── states/
-        ├── menu.lua          # Main navigation menu
-        ├── pause.lua         # Pause overlay
-        ├── gameover.lua      # Game over screen
-        └── examples/         # One file per example
+├── main.lua                  entry point, routes LOVE callbacks
+├── RECIPES.md                code snippets — the fast reference
+├── src/
+│   ├── utils.lua             shared helpers (clamp, lerp, drawHUD...)
+│   ├── input.lua             unified input (keyboard, mouse, touch, gamepad)
+│   ├── gamestate.lua         state machine (switch, resume, event routing)
+│   ├── systems/              reusable building blocks (mostly LOVE-free)
+│   ├── characters/           character library — the first full recipe
+│   └── states/
+│       ├── menu.lua
+│       ├── pause.lua
+│       ├── gameover.lua
+│       └── examples/         one file per example
 ```
 
 ---
 
 ## Systems (`src/systems/`)
 
-Reusable modules with clean APIs. Most are LOVE-free and portable to other engines.
+Reusable modules. Most have zero LOVE dependency and port cleanly to other engines.
 
-### Math
-| System | Description |
-|--------|-------------|
-| `vec3.lua` | 3D vector math — add, sub, dot, cross, normalize, length |
-| `mat4.lua` | 4x4 matrix math — multiply, translate, rotate, scale, perspective, lookAt |
+### Characters & 3D World
+| System | One-liner |
+|--------|-----------|
+| `camera3d.lua` | 3-projection camera (sidescroll / 3/4 / iso) with `toScreen(x,y,z)` |
+| `physics3d.lua` | z-up gravity, acceleration, drag, ground collision |
+| `ik.lua` | 2-bone IK, 3D pole-vector leg IK, FK chain |
+| `stepper.lua` | Procedural foot placement with terrain tracking |
+| `spring.lua` | Damped spring — drives any value toward a target with lag/overshoot |
+| `statemachine.lua` | Generic FSM — add states, auto-transition on return value |
+| `grid.lua` | Procedural terrain grid with barycentric height interpolation |
 
-### Core
-| System | Description |
-|--------|-------------|
-| `camera.lua` | Smooth follow, world bounds, zoom, snap, screen-to-world, visible tile range |
-| `physics.lua` | AABB resolution, velocity, gravity, friction, grounding |
-| `tilemap.lua` | Tile loading, rendering, collision queries, layer support |
-| `collision.lua` | rectRect, circleCircle, circleRect, MTV, sweep, broad phase — zero LOVE |
-| `pathfinding.lua` | A* on grid, diagonal movement, wall-cut prevention, path smoothing — zero LOVE |
+### 2D Core
+| System | One-liner |
+|--------|-----------|
+| `camera.lua` | Smooth follow, zoom, bounds, screen-to-world |
+| `physics.lua` | AABB collision, platformer physics, coyote time, jump buffer |
+| `tilemap.lua` | Tile rendering, collision layers, camera integration |
+| `collision.lua` | rect/circle collision, MTV, sweep — zero LOVE |
+| `pathfinding.lua` | A* with smoothing — zero LOVE |
 
 ### Gameplay
-| System | Description |
-|--------|-------------|
-| `timer.lua` | after, every, tween, cancel — no globals needed |
-| `health.lua` | HP, damage, healing, invincibility frames, death callbacks |
-| `particles.lua` | Particle emitter with pool, per-particle spawn/update/draw callbacks |
-| `anim.lua` | Frame animation, quad atlas, playback control, callbacks on loop |
-| `shake.lua` | Trauma-based screen shake with decay |
+| System | One-liner |
+|--------|-----------|
+| `timer.lua` | after, every, tween, cancel |
+| `health.lua` | HP, damage, iframes, death callbacks |
+| `particles.lua` | Pooled emitter with spawn/update/draw callbacks |
+| `anim.lua` | Frame animation, quad atlas, loop callbacks |
+| `shake.lua` | Trauma-based screen shake |
 
 ### UI / Narrative
-| System | Description |
-|--------|-------------|
-| `hud.lua` | Health bars, stamina bars, minimap, crosshair, floating labels |
-| `dialog.lua` | Conversation trees, speaker portraits, choices, callbacks |
-| `inventory.lua` | Item slots, stacking, equipment slots, drag-and-drop |
-| `transition.lua` | Screen transitions — fade, wipe, circle, pixelate, blur |
+| System | One-liner |
+|--------|-----------|
+| `hud.lua` | Health bars, minimap, floating labels |
+| `dialog.lua` | Conversation trees, choices, typewriter |
+| `inventory.lua` | Item slots, drag-and-drop, equipment |
+| `transition.lua` | Fade, wipe, circle, pixelate, blur |
 
 ### World
-| System | Description |
-|--------|-------------|
-| `daycycle.lua` | Time of day, color keyframes, callbacks at dawn/noon/dusk/midnight |
-| `lighting.lua` | 2D point lights, ambient, attenuation, colored light |
-| `postfx.lua` | Canvas shader chain — bloom, chromatic aberration, vignette, CRT |
-
-### Input
-| System | Description |
-|--------|-------------|
-| `vjoystick.lua` | Virtual joystick — floating origin, deadzone, multi-touch ID tracking — zero LOVE |
+| System | One-liner |
+|--------|-----------|
+| `daycycle.lua` | Time of day, color keyframes, dawn/dusk callbacks |
+| `lighting.lua` | 2D point lights, ambient, attenuation |
+| `postfx.lua` | Shader chain — bloom, aberration, vignette, CRT |
 
 ### Persistence
-| System | Description |
-|--------|-------------|
-| `serializer.lua` | Pure Lua table serialize/deserialize — zero LOVE |
-| `savemanager.lua` | Slot-based save/load using love.filesystem + Serializer |
-| `leaderboard.lua` | Sorted score board, max entries, persist to file |
-| `settings.lua` | Schema-driven settings — toggle, slider, enum — load/save/reset |
+| System | One-liner |
+|--------|-----------|
+| `serializer.lua` | Pure Lua table serialize/deserialize |
+| `savemanager.lua` | Slot-based save/load |
+| `leaderboard.lua` | Sorted score board, persisted |
+| `settings.lua` | Schema-driven settings — toggle, slider, enum |
+
+---
+
+## Character Library (`src/characters/`)
+
+A full procedural character system — the cookbook's first complete recipe.
+
+```lua
+local Character = require "src.characters.character"
+local player = Character.new("man", startX)   -- that's it
+```
+
+**Profiles:** `man` `woman` `child` `troll` `thief` `cat` `duck` `spider`
+
+**Included:** IK legs, procedural stepping, walk/run/jump/fall/land/sit states,
+spring physics, near/far depth sorting, 3-projection rendering.
+
+See **RECIPES.md → CHARACTER** for full usage.
 
 ---
 
 ## Examples (`src/states/examples/`)
 
-### Core (6)
-| Example | Key Concepts |
-|---------|-------------|
-| `topdown_movement` | 8-direction movement, speed, friction, wall collision |
-| `platformer_movement` | Gravity, jump, coyote time, wall-slide |
-| `camera` | Smooth follow, zoom, pinch-to-zoom, mouse wheel, bounds |
-| `tilemap` | Tile rendering, collision layers, camera integration |
-| `collision_demo` | Interactive rect/circle drag — all collision types visualized |
-| `platformer_level` | Full platformer with tilemap, camera, checkpoints, moving platforms |
+### Characters
+| Example | Shows |
+|---------|-------|
+| `character_basics` | 8 characters, terrain, 3 projection views, all states |
 
-### Polish (4)
-| Example | Key Concepts |
-|---------|-------------|
-| `animation` | Sprite atlas, frame sequences, blend modes, callbacks |
-| `screen_shake` | Trauma system, multiple shake sources, decay |
-| `transitions` | 6 transition types — fade, wipe, circle, pixelate, blur, slide |
-| `hud` | Health bars, stamina, minimap, crosshair, floating damage numbers |
+### Core
+| Example | Shows |
+|---------|-------|
+| `topdown_movement` | 8-direction movement, friction, wall collision |
+| `platformer_movement` | Gravity, variable jump, coyote time, jump buffer |
+| `camera` | Smooth follow, zoom, pinch, bounds |
+| `tilemap` | Tile rendering, collision layers |
+| `collision_demo` | All collision types, interactive |
+| `platformer_level` | Full level — tilemap, camera, checkpoints |
 
-### Combat (6)
-| Example | Key Concepts |
-|---------|-------------|
-| `shooter` | Projectile pooling, spread, homing, piercing, enemy waves |
-| `melee_attack` | Hitbox, swing arc, combo counter, knockback, iframes |
-| `enemy_ai` | State machine — idle, patrol, chase, attack — LOS detection |
-| `pathfinding` | A* on grid, path smoothing, dynamic obstacle toggling |
-| `health_damage` | Damage types, armor, invincibility, death, respawn |
-| `particles` | 8 emitter types — fire, smoke, sparks, snow, explosion, magic |
+### Polish
+`animation` `screen_shake` `transitions` `hud`
 
-### UI (3)
-| Example | Key Concepts |
-|---------|-------------|
-| `nav_menu` | Scrollable menu, keyboard/mouse/touch/gamepad navigation |
-| `inventory` | Grid inventory, drag-and-drop, equipment slots, stacking |
-| `dialog` | Multi-speaker dialog, choices, branching, typewriter effect |
+### Combat
+`shooter` `melee_attack` `enemy_ai` `pathfinding` `health_damage` `particles`
 
-### Visual (8)
-| Example | Key Concepts |
-|---------|-------------|
-| `parallax` | Multi-layer scrolling, drag to pan, speed ratios |
-| `day_night` | Day/night cycle, sun/moon arc, sky gradient, stars |
-| `lighting` | Dynamic 2D point lights, shadows, colored ambient |
-| `shaders` | GLSL pixel shaders — wave, CRT, outline, grayscale |
-| `post_fx` | Full-screen shader chain — bloom, aberration, vignette |
-| `basics_3d` | 3D cube in LOVE2D — mat4/vec3, perspective, rotation |
-| `billboards` | Sprite billboards with depth sort, shadows, procedural sprites |
-| `iso_topdown` | Isometric map, raised platforms, depth sorting, jump physics |
+### UI
+`nav_menu` `inventory` `dialog`
 
-### Audio (2)
-| Example | Key Concepts |
-|---------|-------------|
-| `audio_demo` | 9 procedurally generated sounds — no audio files needed |
-| `volume_control` | 5-channel mixer, pitch control, spatial audio (3D positioning) |
+### Visual
+`parallax` `day_night` `lighting` `shaders` `post_fx` `basics_3d` `billboards` `iso_topdown`
 
-### Input (3)
-| Example | Key Concepts |
-|---------|-------------|
-| `keyboard_mouse` | Key events, held keys, mouse trail, click ripples, wheel |
-| `gamepad_demo` | Gamepad detection, all axes/buttons, hot-plug, raw fallback |
-| `virtual_joystick` | Floating stick, multi-touch buttons, keyboard fallback |
+### Audio
+`audio_demo` `volume_control`
 
-### Data (3)
-| Example | Key Concepts |
-|---------|-------------|
-| `save_load` | 3 save slots, serialize/deserialize, file timestamps |
-| `high_score` | Persistent leaderboard, mini dodge game, name entry |
-| `settings_persist` | Schema-driven settings, categories, live apply, reset to defaults |
+### Input
+`keyboard_mouse_demo` `gamepad_demo` `virtual_joystick`
+
+### Data
+`save_load` `high_score` `settings_persist`
 
 ---
 
-## Controls (all examples)
+## Adding an Example
 
-| Input | Action |
-|-------|--------|
-| `ESC` | Back to menu |
-| `P` | Pause |
-| `UP / DOWN` | Navigate lists |
-| `ENTER / SPACE` | Confirm |
-| Mouse / Touch | Click or tap items |
-| Gamepad | D-pad navigate, A confirm |
-
----
-
-## Architecture
-
-### State Machine
-
-All screens are states. Switching is one call:
+**1.** Create `src/states/examples/my_example.lua`:
 
 ```lua
-Gamestate.switch(States.my_example)
-```
-
-Every state can implement any of:
-
-```lua
-state.enter()
-state.exit()
-state.update(dt)
-state.draw()
-state.keypressed(key)
-state.keyreleased(key)
-state.mousepressed(x, y, button)
-state.mousemoved(x, y, dx, dy)
-state.mousereleased(x, y, button)
-state.touchpressed(id, x, y)
-state.touchmoved(id, x, y)
-state.touchreleased(id, x, y)
-state.wheelmoved(x, y)
-state.gamepadpressed(joystick, button)
-state.joystickadded(joystick)
-state.joystickremoved(joystick)
-state.textinput(text)
-```
-
-### Using a System
-
-```lua
--- Timer
-local Timer = require("src.systems.timer")
-local t = Timer.new()
-Timer.after(t, 2.0, function() print("2 seconds later") end)
-Timer.every(t, 0.5, function() print("every half second") end)
--- In update:
-Timer.update(t, dt)
-
--- Camera
-local Camera = require("src.systems.camera")
-local cam = Camera.new(worldW, worldH, screenW, screenH)
--- In update:
-Camera.follow(cam, player, dt)
--- In draw:
-Camera.apply(cam)
-  -- draw world here
-Camera.clear()
-
--- Pathfinding
-local PF = require("src.systems.pathfinding")
-local pf = PF.new(cols, rows, tileSize)
-pf:setGrid(flatGrid)  -- 0=walkable, 1=wall
-local path   = pf:find(startCol, startRow, goalCol, goalRow)
-local smooth = pf:smooth(path)
-
--- Save / Load
-local SM = require("src.systems.savemanager")
-SM.setup("saves/", 3)
-SM.save(1, { level=5, gold=120, name="Hero" })
-local data = SM.load(1)
-
--- Virtual Joystick
-local VJoystick = require("src.systems.vjoystick")
-local vj = VJoystick.new({ radius=70, deadzone=0.12 })
--- In touchpressed:
-vj:activate(x, y, touchId)
--- In touchmoved:
-vj:move(x, y, touchId)
--- In touchreleased:
-vj:release(touchId)
--- In update:
-local ax, ay = vj:axes()
-```
-
----
-
-## Adding a New Example
-
-1. Create `src/states/examples/my_example.lua`:
-
-```lua
-local Utils   = require("src.utils")
-local Timer   = require("src.systems.timer")
+local Utils   = require "src.utils"
 local Example = {}
 
-local W, H
-local timer
-
-function Example.enter()
-    W, H  = love.graphics.getWidth(), love.graphics.getHeight()
-    timer = Timer.new()
-end
-
-function Example.exit()
-    Timer.clear(timer)
-end
+function Example.enter()  end
+function Example.exit()   end
 
 function Example.update(dt)
-    Timer.update(timer, dt)
 end
 
 function Example.draw()
-    -- your drawing here
     Utils.drawHUD("MY EXAMPLE", "controls hint    ESC back")
 end
 
@@ -313,44 +230,40 @@ function Example.keypressed(key)
     Utils.handlePause(key, Example)
 end
 
+function Example.mousepressed(x, y, button) end
+function Example.touchpressed(id, x, y)     end
+function Example.gamepadpressed(j, button)  end
+
 return Example
 ```
 
-2. Require it in `main.lua`:
+**2.** In `main.lua`, add require at the top and entry in `States` table.
 
-```lua
-local MyExample = require("src.states.examples.my_example")
-```
-
-3. Register it in the States table:
-
-```lua
-States = {
-    ...
-    my_example = MyExample,
-}
-```
-
-4. Add it to the menu in `src/states/menu.lua`:
-
-```lua
-{ label = "My Example", state = "my_example" },
-```
+**3.** Add to the menu in `src/states/menu.lua`.
 
 ---
 
-## Known Issues / Tech Debt
+## Controls (all examples)
 
-- **Isometric depth sorting** — player sprite can be occluded by tiles at certain positions (painter's algorithm limitation with 3D geometry)
-- **Nav menu hover** — mouse hover highlight not implemented
-- **Gamepad sliders** — no repeat-on-hold for held D-pad
-- **UTF-8 helpers** — `utf8len` / `utf8sub` not yet in `utils.lua`
-- **Window scaling** — UI uses fixed coordinates; needs virtual resolution system for multi-resolution support
-- **love.physics** — Box2D bindings (joints, constraints, rigid bodies) not yet covered
-- **love.video** — `.ogv` video playback not yet covered
+| Key | Action |
+|-----|--------|
+| `ESC` | Back to menu |
+| `P` | Pause |
+| `UP / DOWN` | Navigate lists |
+| `ENTER / SPACE` | Confirm |
+
+---
+
+## Known Rough Edges
+
+- Most examples in `src/states/examples/` are sketches — they work but aren't recipes yet
+- Quadruped / bird / spider characters not fully tested in cookbook context
+- Trees not ported from characters project
+- Hip sway on humanoid present in walk data but not yet rendered
+- No 2D ↔ character bridge (platformer-style characters)
 
 ---
 
 ## License
 
-MIT — use freely in your own projects.
+MIT
