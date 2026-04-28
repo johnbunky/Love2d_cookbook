@@ -47,6 +47,8 @@ local entries = {
     { label = "Save / Load",          state = "save_load"           },
     { label = "High Score",           state = "high_score"          },
     { label = "Settings Persistence", state = "settings_persist"    },
+    { header = "-- CHARACTERS --" },
+    { label = "CharactersBasics",     state = "character_basics"    },
 }
 
 -- Build selectable index list
