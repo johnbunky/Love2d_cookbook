@@ -49,6 +49,7 @@ local entries = {
     { label = "Settings Persistence", state = "settings_persist"    },
     { header = "-- CHARACTERS --" },
     { label = "CharactersBasics",     state = "character_basics"    },
+    { label = "CellularAutomata",     state = "cellular_automata"   },
 }
 
 -- Build selectable index list

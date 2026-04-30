@@ -89,6 +89,44 @@ local terrain = {
 
 ---
 
+## AUTOMATA
+
+```lua
+local Automata = require "src.systems.automata"
+
+local g = Automata.new(120, 80)
+g.wrap = true           -- false for cave/fire, true for Conway/maze
+g:fill(0.45)            -- random seed at 45% density
+g:step(Automata.rules.cave)   -- advance one generation
+-- read: g.cells[y][x]  (0 = dead / empty)
+
+-- built-in rules:
+--   conway   B3/S23          classic Game of Life
+--   cave     B5678/S45678    smooth cave walls — run ~5 steps then stop
+--   maze     B3/S12345       long corridor tendrils from sparse seeds
+--   coral    B3/S45678       slow outward growth, like lichen
+--   seeds    B2/S            every cell lives exactly one generation
+--   fire     custom          multi-state 0-255 heat, rises with decay
+
+-- custom rule from Golly notation:
+g:step(Automata.parseBS("B36/S23"))
+
+-- manual cell edits (mouse painting, spawning entities, etc.):
+g:set(cx, cy, 1)
+local v = g:get(x, y)   -- safe read, respects g.wrap
+```
+
+**Cave dungeon recipe** — produces a ready-to-use tilemap in ~5 steps:
+```lua
+local g = Automata.new(80, 50)
+g.wrap = false
+g:fill(0.47)
+for i = 1, 5 do g:step(Automata.rules.cave) end
+-- g.cells[y][x] is now your tilemap: 1 = wall, 0 = floor
+```
+
+---
+
 ## SPRING
 
 ```lua

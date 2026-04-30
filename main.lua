@@ -61,6 +61,7 @@ local HighScore         = require("src.states.examples.high_score")
 local SettingsPersist   = require("src.states.examples.settings_persist")
 -- New
 local CharacterBasics   = require("src.states.examples.character_basics")
+local CellularAutomata  = require("src.states.examples.cellular_automata")
 
 States = {
     menu                = MenuState,
@@ -111,6 +112,7 @@ States = {
     settings_persist    = SettingsPersist,
     -- New
     character_basics    = CharacterBasics,
+    cellular_automata   = CellularAutomata,
 }
 
 -- Override getWidth/getHeight so all examples return virtual resolution.
