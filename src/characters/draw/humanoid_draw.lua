@@ -29,12 +29,11 @@ function M.render(c, hints, camera)
     local lean    = hints.lean       or 0
     local squash  = hints.squash     or 1
     local sway    = hints.sway       or 0
-    local wave    = hints.wave       or 0   -- forward/back hip oscillation
+    local wave    = hints.wave       or 0
     local spExtra = hints.spineExtra or 0
     local airTuck = hints.airTuck    or 0
     local legExt  = hints.legExtend  or 0
 
-    -- proportions: profile.body overrides rig defaults
     local b    = p.body or {}
     local rig2 = {
         spine      = b.spine      or rig.spine      or 60,
@@ -47,84 +46,69 @@ function M.render(c, hints, camera)
         shoulder_w = b.shoulder_w or rig.shoulder_w or 22,
         knee_dir   = rig.knee_dir or 1,
     }
-    rig = rig2   -- shadow rig with merged values
+    rig = rig2
 
     local spineLen = (rig.spine + spExtra) * squash
     local hw = rig.hip_w
     local sw = rig.shoulder_w
 
-    -- movement direction — computed first, needed for hip wave and lean
     local vx, vy = c.vel.x, c.vel.y
     local vlen   = math.sqrt(vx*vx + vy*vy)
     local dx, dy
     if vlen > 4 then
         dx, dy = vx/vlen, vy/vlen
-        c.lastDx, c.lastDy = dx, dy   -- remember last movement direction
+        c.lastDx, c.lastDy = dx, dy
     else
-        dx, dy = c.lastDx or f, c.lastDy or 0   -- hold orientation after stopping
+        dx, dy = c.lastDx or f, c.lastDy or 0
     end
-    local px, py = -dy, dx   -- hip bar perpendicular
+    local px, py = -dy, dx
 
-    -- hip centre: sway shifts perpendicular, wave shifts along movement direction
     local hx = pos.x + sway + dx * wave
     local hy = pos.y         + dy * wave
     local hz = pos.z + bob
 
-    -- shoulder centre: lean in movement direction + posture arch
-    -- arch > 0 = chest forward (shoulders pulled back), like feminine upright posture
-    -- arch < 0 = hunch (shoulders forward), like elderly or tired posture
     local arch       = p.posture_arch or 0
     local lean_dist  = math.sin(lean) * spineLen
-    -- arch offsets shoulder perpendicular to lean direction (back = -dx, -dy)
     local arch_dist  = math.sin(arch) * spineLen * 0.4
     local sx = hx + dx * lean_dist - dx * arch_dist
     local sy = hy + dy * lean_dist - dy * arch_dist
     local sz = hz + math.cos(lean) * spineLen + math.sin(math.abs(arch)) * spineLen * 0.06
 
-    -- shoulder bar perpendicular: rotated by shoulderRotate for counter-rotation
     local sr    = hints.shoulderRotate or 0
     local cos_r = math.cos(sr)
     local sin_r = math.sin(sr)
     local spx   = px * cos_r - py * sin_r
     local spy   = px * sin_r + py * cos_r
 
-    -- hip bar: optionally rotated (woman's hip sway)
     local hr_ang  = hints.hipRotate or 0
     local hcos    = math.cos(hr_ang); local hsin = math.sin(hr_ang)
     local hpx     = px*hcos - py*hsin
     local hpy     = px*hsin + py*hcos
     local hl_x = hx - hpx*hw;  local hl_y = hy - hpy*hw
     local hr_x = hx + hpx*hw;  local hr_y = hy + hpy*hw
-    -- shoulder bar endpoints (use rotated perpendicular spx,spy)
     local sl_x = sx - spx*sw;  local sl_y = sy - spy*sw
     local sr_x = sx + spx*sw;  local sr_y = sy + spy*sw
 
-    -- camera depth: lower value = closer to camera = draws on top
     local function camDepth(wx, wy)
-        if camera.view == "isometric"    then return wx + wy
+        if camera.view == "isometric"        then return wx + wy
         elseif camera.view == "threequarter" then return wy
-        else return -wx * f  end  -- sidescroll: facing side is front
+        else return -wx * f  end
     end
 
-    -- left/right side of hip bar — stable, smooth, never flickers
-    -- near side = HIGHER camDepth in 3/4 and iso (camera looks from low Y)
     local left_near = camDepth(hl_x, hl_y) >= camDepth(hr_x, hr_y)
 
-    -- near-side hip/shoulder endpoints
     local hn_x = left_near and hl_x or hr_x;  local hn_y = left_near and hl_y or hr_y
     local hf_x = left_near and hr_x or hl_x;  local hf_y = left_near and hr_y or hl_y
     local sn_x = left_near and sl_x or sr_x;  local sn_y = left_near and sl_y or sr_y
     local sf_x = left_near and sr_x or sl_x;  local sf_y = left_near and sr_y or sl_y
 
-    -- assign feet by proximity to near/far hip attachment
     local f1 = c.stepper.feet[1]
     local f2 = c.stepper.feet[2]
     local d1n = (f1.x-hn_x)^2 + (f1.y-hn_y)^2
     local d1f = (f1.x-hf_x)^2 + (f1.y-hf_y)^2
-    local fn, ff   -- near foot, far foot
+    local fn, ff
     if d1n <= d1f then fn=f1; ff=f2 else fn=f2; ff=f1 end
 
-    -- IK foot targets: adjust z for tuck (pull up) and extend (push down)
     local tuck_lift = airTuck * (rig.ul + rig.ll) * 0.55
     local ext_drop  = legExt  * (rig.ul + rig.ll) * 0.12
 
@@ -134,10 +118,6 @@ function M.render(c, hints, camera)
     local nkx,nky,nkz = IK.solveLeg(hn_x,hn_y,hz, fn.x,fn.y,fn_fz, rig.ul,rig.ll, dx,dy)
     local fkx,fky,fkz = IK.solveLeg(hf_x,hf_y,hz, ff.x,ff.y,ff_fz, rig.ul,rig.ll, dx,dy)
 
-    -- arms: FK chain from shoulder endpoint.
-    -- Simple forward-kinematics avoids IK pole-vector issues entirely.
-    -- Elbow z = shoulder_z - ua, hand z = elbow_z - la (arms hang straight down at rest).
-    -- Swing offset (as) moves elbow and hand forward/back along movement direction.
     local as  = swing * f
     local nex = sn_x + dx*(as* 35);  local ney = sn_y + dy*(as* 35);  local nez = sz - rig.ua
     local nhx = nex  + dx*(as* 18);  local nhy = ney  + dy*(as* 18);  local nhz = nez - rig.la
@@ -146,76 +126,143 @@ function M.render(c, hints, camera)
 
     love.graphics.setLineWidth(3)
 
-    -- === far layer (dimmed) ===
-    love.graphics.setColor(col[1]*0.5, col[2]*0.5, col[3]*0.5, 0.42)
-    seg(camera, sf_x,sf_y,sz,  fex,fey,fez)
-    seg(camera, fex,fey,fez,   fhx,fhy,fhz)
-    seg(camera, hf_x,hf_y,hz,  fkx,fky,fkz)
-    seg(camera, fkx,fky,fkz,   ff.x,ff.y,ff_fz)
+    -- =========================================================================
+    -- SKIN STACK DISPATCH
+    -- Supports both single skin and layered stack:
+    --
+    --   skin  = "soft"                              -- single, backward compat
+    --   skins = {                                   -- layered stack
+    --       "soft",
+    --       { name="particles", blend="add", alpha=0.6 },
+    --   }
+    --
+    -- blend: "alpha"(default) | "add" | "multiply" | "subtract"
+    -- alpha: master opacity 0-1 (default 1)
+    -- Stack cached on c._skin_stack, invalidated when profile changes.
+    -- =========================================================================
 
-    -- === spine + bars ===
-    love.graphics.setColor(col[1], col[2], col[3])
-    local chx,chy = camera:toScreen(hx,hy,hz)
-    local csx,csy = camera:toScreen(sx,sy,sz)
-    love.graphics.setLineWidth(3)
-    love.graphics.line(chx,chy, csx,csy)
-
-    -- hip bar
-    local hbsx1,hbsy1 = camera:toScreen(hl_x,hl_y,hz)
-    local hbsx2,hbsy2 = camera:toScreen(hr_x,hr_y,hz)
-    love.graphics.setLineWidth(4)
-    love.graphics.line(hbsx1,hbsy1, hbsx2,hbsy2)
-    love.graphics.circle("fill", hbsx1,hbsy1, 5)
-    love.graphics.circle("fill", hbsx2,hbsy2, 5)
-
-    -- shoulder bar
-    local sbsx1,sbsy1 = camera:toScreen(sl_x,sl_y,sz)
-    local sbsx2,sbsy2 = camera:toScreen(sr_x,sr_y,sz)
-    love.graphics.setLineWidth(4)
-    love.graphics.line(sbsx1,sbsy1, sbsx2,sbsy2)
-    love.graphics.circle("fill", sbsx1,sbsy1, 5)
-    love.graphics.circle("fill", sbsx2,sbsy2, 5)
-    love.graphics.setLineWidth(3)
-
-    -- head
-    love.graphics.setLineWidth(2)
-    local hdx,hdy = camera:toScreen(sx,sy, sz + rig.head_r)
-    love.graphics.circle("line", hdx,hdy, rig.head_r)
-    love.graphics.setLineWidth(3)
-
-    -- breast: two circles at shoulder bar, slightly forward, upper torso
-    if p.breast and c.springs and c.springs.breast_l then
-        local size  = rig.head_r * 0.55
-        local fwd   = 6   -- pixels forward in facing direction
-
-        -- positions: shoulder bar endpoints, pushed forward
-        local lx = sl_x + dx * fwd * f;  local ly = sl_y + dy * fwd * f
-        local rx = sr_x + dx * fwd * f;  local ry = sr_y + dy * fwd * f
-        local lz = sz - 4 + c.springs.breast_l.value
-        local rz = sz - 4 + c.springs.breast_r.value
-
-        -- near/far
-        local l_near = camDepth(lx, ly) >= camDepth(rx, ry)
-        local nx2,ny2,nz2 = l_near and lx or rx, l_near and ly or ry, l_near and lz or rz
-        local fx2,fy2,fz2 = l_near and rx or lx, l_near and ry or ly, l_near and rz or lz
-
-        love.graphics.setColor(col[1]*0.5, col[2]*0.5, col[3]*0.5, 0.42)
-        local bfx,bfy = camera:toScreen(fx2, fy2, fz2)
-        love.graphics.circle("fill", bfx, bfy, size * 0.85)
-
-        love.graphics.setColor(col[1], col[2], col[3])
-        local bnx,bny = camera:toScreen(nx2, ny2, nz2)
-        love.graphics.circle("fill", bnx, bny, size)
+    local function resolve_entries(profile)
+        local raw = profile.skins or { profile.skin or "wire" }
+        local out = {}
+        for _, v in ipairs(raw) do
+            if type(v) == "string" then
+                out[#out+1] = { name=v, blend="alpha", alpha=1.0 }
+            elseif type(v) == "table" and v.name then
+                out[#out+1] = { name=v.name, blend=v.blend or "alpha", alpha=v.alpha or 1.0 }
+            end
+        end
+        return out
     end
 
-    -- === near layer (full brightness) ===
-    love.graphics.setColor(col[1], col[2], col[3])
-    seg(camera, hn_x,hn_y,hz,  nkx,nky,nkz)
-    seg(camera, nkx,nky,nkz,   fn.x,fn.y,fn_fz)
-    seg(camera, sn_x,sn_y,sz,  nex,ney,nez)
-    seg(camera, nex,ney,nez,   nhx,nhy,nhz)
+    local function stack_key(entries)
+        local t = {}
+        for _, e in ipairs(entries) do t[#t+1] = e.name.."|"..e.blend.."|"..e.alpha end
+        return table.concat(t, "+")
+    end
 
-    -- === DEBUG: hold G ===
+    local entries = resolve_entries(p)
+    local key     = stack_key(entries)
+
+    if c._skin_stack_key ~= key then
+        c._skin_stack_key = key
+        c._skin_stack     = {}
+        for _, e in ipairs(entries) do
+            local ok, mod = pcall(require, "src.characters.skins." .. e.name)
+            if ok then
+                c._skin_stack[#c._skin_stack+1] = { mod=mod, name=e.name, blend=e.blend, alpha=e.alpha }
+            else
+                print("[skin] WARNING: '" .. e.name .. "' not found, skipping")
+            end
+        end
+        if #c._skin_stack == 0 then
+            c._skin_stack[1] = { mod=require"src.characters.skins.wire", name="wire", blend="alpha", alpha=1.0 }
+        end
+    end
+
+    local bones = {
+        -- spine
+        hip           = { x = hx,    y = hy,    z = hz              },
+        chest         = { x = sx,    y = sy,    z = sz              },
+        head          = { x = sx,    y = sy,    z = sz + rig.head_r },
+        -- near arm
+        near_shoulder = { x = sn_x,  y = sn_y,  z = sz   },
+        near_elbow    = { x = nex,   y = ney,   z = nez  },
+        near_hand     = { x = nhx,   y = nhy,   z = nhz  },
+        -- far arm
+        far_shoulder  = { x = sf_x,  y = sf_y,  z = sz   },
+        far_elbow     = { x = fex,   y = fey,   z = fez  },
+        far_hand      = { x = fhx,   y = fhy,   z = fhz  },
+        -- near leg
+        near_hip      = { x = hn_x,  y = hn_y,  z = hz    },
+        near_knee     = { x = nkx,   y = nky,   z = nkz   },
+        near_foot     = { x = fn.x,  y = fn.y,  z = fn_fz },
+        -- far leg
+        far_hip       = { x = hf_x,  y = hf_y,  z = hz    },
+        far_knee      = { x = fkx,   y = fky,   z = fkz   },
+        far_foot      = { x = ff.x,  y = ff.y,  z = ff_fz },
+        -- full bars (wire skin draws these as thick lines)
+        hip_left      = { x = hl_x,  y = hl_y,  z = hz },
+        hip_right     = { x = hr_x,  y = hr_y,  z = hz },
+        shoulder_left = { x = sl_x,  y = sl_y,  z = sz },
+        shoulder_right = { x = sr_x, y = sr_y,  z = sz },
+        -- orientation
+        facing    = f,
+        left_near = left_near,
+    }
+
+    -- secondary: added only when character has them.
+    -- Springs live on c.secondary, updated before render.
+    -- Skin reads what it needs and ignores the rest.
+
+    -- breast: spring-driven z offset on top of shoulder bar endpoints
+    if c.secondary and c.secondary.breast_l then
+        local bfwd = (p.secondary and p.secondary.breast and p.secondary.breast.fwd) or 8
+        bones.breast_l = {
+            x = sl_x + dx * bfwd * f,
+            y = sl_y + dy * bfwd * f,
+            z = sz - 4 + c.secondary.breast_l.value,
+        }
+        bones.breast_r = {
+            x = sr_x + dx * bfwd * f,
+            y = sr_y + dy * bfwd * f,
+            z = sz - 4 + c.secondary.breast_r.value,
+        }
+    end
+
+    -- ponytail / tail: array of {x,y,z} from root to tip
+    if c.secondary and c.secondary.ponytail then
+        bones.ponytail = c.secondary.ponytail
+    end
+
+    -- belly: single spring point below chest
+    if c.secondary and c.secondary.belly then
+        bones.belly = {
+            x = hx,
+            y = hy,
+            z = hz + (rig.spine * 0.25) + c.secondary.belly.value,
+        }
+    end
+
+    -- run the skin stack
+    local prev_blend = love.graphics.getBlendMode()
+    for _, entry in ipairs(c._skin_stack) do
+        -- set blend mode and master alpha
+        love.graphics.setBlendMode(entry.blend)
+        love.graphics.setColor(1, 1, 1, entry.alpha)   -- skins multiply into this
+
+        -- stateful skins declare update()
+        if entry.mod.update then
+            entry.mod.update(bones, rig, p, hints.dt or love.timer.getDelta(), c)
+        end
+
+        entry.mod.draw(bones, rig, p, camera, c)
+    end
+    love.graphics.setBlendMode(prev_blend)
+    love.graphics.setColor(1, 1, 1, 1)
+
+    -- =========================================================================
+    -- DEBUG: hold G  (always runs regardless of skin)
+    -- =========================================================================
     if love.keyboard.isDown("g") then
         local function dbdot(wx,wy,wz, r, cr,cg,cb)
             local sx,sy = camera:toScreen(wx,wy,wz)
@@ -225,23 +272,19 @@ function M.render(c, hints, camera)
             love.graphics.print(string.format("%.0f,%.0f,%.0f",wx,wy,wz), sx+4,sy-5, 0,0.65)
         end
 
-        -- LEGS
-        dbdot(hn_x,hn_y,hz,   6, 1,1,0)       -- near hip attach  (yellow)
-        dbdot(hf_x,hf_y,hz,   6, 0.7,0.7,0)   -- far  hip attach  (dark yellow)
-        dbdot(fn.x,fn.y,fn.z, 6, 0,1,1)        -- near foot        (cyan)
-        dbdot(ff.x,ff.y,ff.z, 6, 0.3,0.3,1)   -- far  foot        (blue)
-        dbdot(nkx,nky,nkz,    5, 0,1,0)        -- near knee        (green)
-        dbdot(fkx,fky,fkz,    5, 1,0,0)        -- far  knee        (red)
+        dbdot(hn_x,hn_y,hz,   6, 1,1,0)
+        dbdot(hf_x,hf_y,hz,   6, 0.7,0.7,0)
+        dbdot(fn.x,fn.y,fn.z, 6, 0,1,1)
+        dbdot(ff.x,ff.y,ff.z, 6, 0.3,0.3,1)
+        dbdot(nkx,nky,nkz,    5, 0,1,0)
+        dbdot(fkx,fky,fkz,    5, 1,0,0)
+        dbdot(sn_x,sn_y,sz,   6, 1,0.5,0)
+        dbdot(sf_x,sf_y,sz,   6, 0.6,0.3,0)
+        dbdot(nex,ney,nez,     5, 1,0,1)
+        dbdot(fex,fey,fez,     5, 0.6,0,0.6)
+        dbdot(nhx,nhy,nhz,     5, 0.5,1,0.5)
+        dbdot(fhx,fhy,fhz,     5, 0.2,0.6,0.2)
 
-        -- ARMS (FK)
-        dbdot(sn_x,sn_y,sz,   6, 1,0.5,0)      -- near shoulder attach  (orange)
-        dbdot(sf_x,sf_y,sz,   6, 0.6,0.3,0)    -- far  shoulder attach  (dark orange)
-        dbdot(nex,ney,nez,     5, 1,0,1)        -- near elbow            (magenta)
-        dbdot(fex,fey,fez,     5, 0.6,0,0.6)   -- far  elbow            (dark magenta)
-        dbdot(nhx,nhy,nhz,     5, 0.5,1,0.5)   -- near hand             (light green)
-        dbdot(fhx,fhy,fhz,     5, 0.2,0.6,0.2) -- far  hand             (dark green)
-
-        -- velocity arrow
         love.graphics.setColor(1,0.5,0,0.9)
         love.graphics.setLineWidth(2)
         local ax,ay   = camera:toScreen(hx,hy,hz)

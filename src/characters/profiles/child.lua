@@ -1,7 +1,10 @@
 -- profiles/child.lua
 return {
     rig = "humanoid",
-
+    skins = {
+        "robot",
+        { name = "particles", blend = "add", alpha = 0.9 },
+    },
     body = {
         spine      = 38,   -- short torso
         head_r     = 16,   -- head proportionally large

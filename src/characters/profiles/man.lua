@@ -1,7 +1,7 @@
 -- profiles/man.lua
 return {
     rig        = "humanoid",
-
+    skin = "wire",   -- or leave it out / set "wire" for identical-to-before
     -- ============================================================
     -- BODY PROPORTIONS
     -- These override rig defaults. Remove any line to use the default.

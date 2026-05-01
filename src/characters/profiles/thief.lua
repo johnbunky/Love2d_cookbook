@@ -1,6 +1,7 @@
 -- profiles/thief.lua
 return {
     rig        = "humanoid",
+    skin       = "particles",
 
     -- twitchy, instant response, snappy stop
     accel      = 940,

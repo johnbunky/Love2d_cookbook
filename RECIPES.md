@@ -200,6 +200,178 @@ s.terrain = { floorAt = function(self,x,y) return z end }
 
 ---
 
+## SKINS
+
+A skin decides how a character's skeleton is drawn.
+The skeleton (IK legs, FK arms, near/far sorting) is always the same.
+Only the visual output changes.
+
+```lua
+-- in any profile:
+skin = "soft"    -- "wire" | "soft" | "robot"  (default: "wire")
+```
+
+The skin module is lazy-loaded and cached on the character instance —
+no `require` overhead after the first frame.
+
+---
+
+### Skin interface
+
+Every skin is a module with one required function:
+
+```lua
+-- Skin.draw(bones, rig, profile, camera, c)
+--   bones   table   all joint positions in world-space {x,y,z}
+--   rig     table   merged rig values (spine, head_r, hip_w, shoulder_w, ul, ll, ua, la)
+--   profile table   the character's profile (color, widths, skin-specific keys)
+--   camera  Camera3D
+--   c       entity  the full character — only needed by stateful skins
+
+function MySkin.draw(bones, rig, profile, camera, _c)
+    -- project a bone to screen:
+    local sx, sy = camera:toScreen(bone.x, bone.y, bone.z)
+    -- draw with love.graphics.*
+end
+```
+
+Stateful skins (e.g. particles) also declare:
+
+```lua
+-- called automatically before draw() each frame
+function MySkin.update(bones, rig, profile, dt, c)
+    -- store state in c.skin_state = {}
+end
+```
+
+---
+
+### Bones table
+
+All bones are world-space `{x, y, z}` — project them yourself with `camera:toScreen`.
+
+```
+-- spine
+hip             chest           head
+
+-- near arm (closer to camera)
+near_shoulder   near_elbow      near_hand
+
+-- far arm
+far_shoulder    far_elbow       far_hand
+
+-- near leg
+near_hip        near_knee       near_foot
+
+-- far leg
+far_hip         far_knee        far_foot
+
+-- bar endpoints (raw hip/shoulder bar corners, before near/far split)
+hip_left        hip_right
+shoulder_left   shoulder_right
+
+-- orientation
+facing          1 or -1
+left_near       bool — is the left side the near side?
+```
+
+Secondary bones (only present when `c.secondary` has them):
+
+```
+breast_l    breast_r    ponytail    belly
+```
+
+---
+
+### Built-in skins
+
+**`wire`** — line skeleton, default. No profile setup needed.
+
+**`soft`** — outlined capsule body.
+
+```lua
+skin  = "soft",
+color = { 0.91, 0.76, 0.62 },   -- skin tone
+
+-- optional:
+outline_color = { 0.3, 0.2, 0.15, 1 },
+far_darken    = 0.50,            -- 0 = no dimming, 1 = black
+
+widths = {
+    -- all in screen pixels, proportional to rig by default
+    leg_top = 10,   leg_bot = 7,   foot  = 5,
+    arm_top =  8,   arm_bot = 6,   hand  = 4,
+    torso_top = 18, torso_bot = 14,
+},
+
+secondary = {
+    breast   = { fwd = 8, r = 7 },    -- spring-driven, needs c.secondary
+    ponytail = { r = 4 },
+    belly    = { r = 10 },
+},
+```
+
+**`robot`** — rectangular plates, hexagon head, bolts at joints.
+
+```lua
+skin  = "robot",
+color = { 0.78, 0.82, 0.88 },   -- metal tone
+
+-- optional:
+outline_color = { 0.10, 0.10, 0.12, 1 },
+far_darken    = 0.45,
+
+widths = {
+    -- same keys as soft, robots default to more uniform segments
+},
+
+robot = {
+    joint_size  = 3.5,                       -- bolt radius px
+    joint_color = { 0.75, 0.78, 0.82, 1 },  -- brushed metal
+},
+```
+
+---
+
+### Writing a new skin
+
+Copy this template into `src/characters/skins/myname.lua`:
+
+```lua
+local MySkin = {}
+
+local function proj(b, cam)
+    return cam:toScreen(b.x, b.y, b.z)
+end
+
+function MySkin.draw(bones, rig, profile, camera, _c)
+    local col = profile.color   -- always available
+    local far = profile.far_darken or 0.5
+
+    -- far layer first, near layer last, head always on top
+    love.graphics.setColor(col[1]*far, col[2]*far, col[3]*far, 0.85)
+    -- ... draw far limbs ...
+
+    love.graphics.setColor(col[1], col[2], col[3])
+    -- ... draw near limbs, torso, head ...
+end
+
+return MySkin
+```
+
+Rules:
+- **Always set your own color** before every draw call — never assume the previous color
+- **Near/far order**: far limbs → torso → near limbs → head
+- **Use `camera:toScreen(x,y,z)`** to project — never hardcode screen coords
+- **Avoid `love.graphics.polygon` for wide/short segments** — use `push/rotate/rectangle` instead to prevent LÖVE's triangulator from producing degenerate shapes
+- **Guard bad projections**: `if math.abs(sx) > 5000 or math.abs(sy) > 5000 then return end`
+
+---
+
+### Debug overlay
+
+Add `love.keyboard.isDown("r")` to any skin to show an on-screen bone console.
+`robot.lua` has a full reference implementation — copy `draw_debug()` from there.
 ## PHYSICS (3D z-up)
 
 ```lua

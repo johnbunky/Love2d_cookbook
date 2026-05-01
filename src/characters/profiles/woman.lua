@@ -1,7 +1,14 @@
 -- profiles/woman.lua
 return {
     rig = "humanoid",
-
+    skins = {
+        "soft",
+        { name = "wire", blend = "alpha", alpha = 0.35 },
+    },
+    secondary = {
+        breast   = { fwd = 8,  r = 7  },
+        ponytail = { r = 4 },
+    },
     body = {
         spine      = 56,
         head_r     = 15,
