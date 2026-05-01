@@ -79,6 +79,7 @@ function Character.new(profileName, startX)
         sway     = Spring.new(0),
         lean     = Spring.new(0),
         bob      = Spring.new(0),
+        squash   = Spring.new(1),   -- rest = 1 (normal height), compress below 1
         breast_l = Spring.new(0),
         breast_r = Spring.new(0),
     }
@@ -162,11 +163,13 @@ function Character.new(profileName, startX)
         local sec2 = self.profile.secondary
         if sec2 then
 
-            -- breast springs: driven by vertical velocity
+            -- breast: driven by vertical velocity
+            -- lower stiffness = more lag behind target = more visible oscillation
             if sec2.breast and self.springs.breast_l then
-                local stiff  = sec2.breast.stiffness or 14
-                local damp   = sec2.breast.damping   or 6
-                local target = -self.vel.z * (sec2.breast.follow or 0.10)
+                local stiff  = sec2.breast.stiffness or 8    -- was 14, lower = more lag
+                local damp   = sec2.breast.damping   or 5
+                local follow = sec2.breast.follow    or 0.18  -- was 0.10
+                local target = -self.vel.z * follow
                 self.springs.breast_l:update(dt, target,        stiff, damp)
                 self.springs.breast_r:update(dt, target * 0.93, stiff, damp)
             end
