@@ -211,35 +211,41 @@ function M.render(c, hints, camera)
     }
 
     -- secondary: added only when character has them.
-    -- Springs live on c.secondary, updated before render.
+    -- Springs live on c.springs, ticked in c:update().
     -- Skin reads what it needs and ignores the rest.
 
-    -- breast: spring-driven z offset on top of shoulder bar endpoints
-    if c.secondary and c.secondary.breast_l then
-        local bfwd = (p.secondary and p.secondary.breast and p.secondary.breast.fwd) or 8
+    -- breast: spring-driven z offset, only when profile.secondary.breast is defined
+    if p.secondary and p.secondary.breast and c.springs.breast_l then
+        local sec    = p.secondary.breast
+        local b_fwd  = sec.fwd  or 12   -- forward push from chest
+        local b_lat  = sw * 0.28        -- lateral spread (fraction of shoulder width)
+        local b_drop = (rig.head_r or 17) * 0.45   -- drop below shoulder level
+
+        -- anchor: chest center pushed forward, spread left/right along shoulder bar
+        -- spx,spy = shoulder bar perpendicular (already computed above)
         bones.breast_l = {
-            x = sl_x + dx * bfwd * f,
-            y = sl_y + dy * bfwd * f,
-            z = sz - 4 + c.secondary.breast_l.value,
+            x = sx - spx * b_lat + dx * b_fwd,
+            y = sy - spy * b_lat + dy * b_fwd,
+            z = sz - b_drop + c.springs.breast_l.value,
         }
         bones.breast_r = {
-            x = sr_x + dx * bfwd * f,
-            y = sr_y + dy * bfwd * f,
-            z = sz - 4 + c.secondary.breast_r.value,
+            x = sx + spx * b_lat + dx * b_fwd,
+            y = sy + spy * b_lat + dy * b_fwd,
+            z = sz - b_drop + c.springs.breast_r.value,
         }
     end
 
     -- ponytail / tail: array of {x,y,z} from root to tip
-    if c.secondary and c.secondary.ponytail then
+    if p.secondary and p.secondary.ponytail and c.secondary and c.secondary.ponytail then
         bones.ponytail = c.secondary.ponytail
     end
 
     -- belly: single spring point below chest
-    if c.secondary and c.secondary.belly then
+    if p.secondary and p.secondary.belly and c.springs.belly then
         bones.belly = {
             x = hx,
             y = hy,
-            z = hz + (rig.spine * 0.25) + c.secondary.belly.value,
+            z = hz + (rig.spine * 0.25) + c.springs.belly.value,
         }
     end
 

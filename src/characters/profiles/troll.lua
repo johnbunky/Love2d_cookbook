@@ -1,7 +1,7 @@
 -- profiles/troll.lua
 return {
     rig        = "humanoid",
-
+    skin       = "wire",
     -- heavy, slow to start, hard to stop
     accel      = 280,
     drag       = 3,

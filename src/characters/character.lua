@@ -23,6 +23,18 @@
 --     worldD  = number,
 --     floorAt = function(self, x, y) return z end,
 --   }
+--
+-- SECONDARY MOTION:
+--   Add to profile to enable spring-driven body parts:
+--   secondary = {
+--       breast = {
+--           fwd        = 8,     -- forward offset from shoulder bar (px)
+--           r          = 7,     -- draw radius (used by soft skin)
+--           follow     = 0.10,  -- how much vel.z drives the spring target
+--           stiffness  = 14,
+--           damping    = 6,
+--       },
+--   }
 
 local StateMachine = require "src.systems.statemachine"
 local Stepper      = require "src.systems.stepper"
@@ -148,6 +160,25 @@ function Character.new(profileName, startX)
         self.sm:update(dt)
         self.dt = dt   -- stored so draw callbacks can use it without getDelta()
 
+        -- ── secondary motion ─────────────────────────────────────────────────
+        -- Springs are driven by physics (vel.z, vel.x) so they react to
+        -- jumps, landings, and direction changes without any state wiring.
+        local sec = self.profile.secondary
+        if sec then
+            -- breast: vel.z drives vertical jiggle
+            --   falling (vel.z < 0) → breast lags upward  → positive z offset
+            --   rising  (vel.z > 0) → breast lags downward → negative z offset
+            if sec.breast and self.springs.breast_l then
+                local stiff  = sec.breast.stiffness or 14
+                local damp   = sec.breast.damping   or 6
+                local follow = sec.breast.follow    or 0.10
+                local target = -self.vel.z * follow
+                -- slight independence between left/right (different phase)
+                self.springs.breast_l:update(dt, target,        stiff, damp)
+                self.springs.breast_r:update(dt, target * 0.93, stiff, damp)
+            end
+        end
+
         self.stepper.terrain = terrain
 
         -- update facing after physics so velocity reflects this frame
@@ -158,6 +189,11 @@ function Character.new(profileName, startX)
             if new_facing ~= self.facing then
                 self.facing = new_facing
                 self.stepper:reset(self.pos.x, self.pos.y, self.floorZ)
+                -- reset secondary springs to avoid a snap on direction change
+                if sec and sec.breast then
+                    self.springs.breast_l:reset(0)
+                    self.springs.breast_r:reset(0)
+                end
             end
         end
     end
