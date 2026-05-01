@@ -7,7 +7,15 @@ return {
     },
     secondary = {
         breast   = { fwd = 8,  r = 7  },
-        ponytail = { r = 4 },
+        ponytail = {
+            stiffness = 0.35,    -- new — pulls each segment toward straight
+            segs    = 5,      -- chain segments
+            seg_len = 10,     -- segment length in world units
+            back    = 6,      -- root offset behind head
+            r       = 4,      -- draw radius at root (soft skin tapers to tip)
+            gravity = 180,    -- heavier = falls faster
+            damping = 0.96,  -- closer to 1 = floatier, closer to 0.95 = snappier
+        },
     },
     body = {
         spine      = 56,
@@ -16,7 +24,7 @@ return {
         ll         = 44,
         ua         = 30,
         la         = 26,
-        hip_w      = 24,   -- wider hips
+        hip_w      = 19,   -- wider hips
         shoulder_w = 16,   -- narrower shoulders — inverted ratio vs man
     },
 
@@ -39,8 +47,8 @@ return {
 
     walk_hip_rotation = 0.18,  -- hip bar rotates with stride (feminine gait)
     walk_phase_speed = 12,   -- quicker cadence (shorter legs)
-    walk_bob         = 4,    -- minimal vertical bounce
-    walk_sway        = 6.5,  -- pronounced hip sway — the key element
+    walk_bob         = 6,    -- minimal vertical bounce
+    walk_sway        = 9.5,  -- pronounced hip sway — the key element
     walk_counter     = 0.15, -- very little shoulder rotation
 
     run_threshold    = 0.50,

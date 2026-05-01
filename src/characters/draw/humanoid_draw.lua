@@ -235,9 +235,15 @@ function M.render(c, hints, camera)
         }
     end
 
-    -- ponytail / tail: array of {x,y,z} from root to tip
-    if p.secondary and p.secondary.ponytail and c.secondary and c.secondary.ponytail then
-        bones.ponytail = c.secondary.ponytail
+    -- ponytail: verlet chain, root=head, points flow toward tip
+    -- c.chain.ponytail.pts is [{x,y,z,ox,oy,oz}, ...] — skin only needs x,y,z
+    if p.secondary and p.secondary.ponytail and c.chain and c.chain.ponytail then
+        local pts = c.chain.ponytail.pts
+        local out = {}
+        for i, pt in ipairs(pts) do
+            out[i] = { x=pt.x, y=pt.y, z=pt.z }
+        end
+        bones.ponytail = out
     end
 
     -- belly: single spring point below chest
