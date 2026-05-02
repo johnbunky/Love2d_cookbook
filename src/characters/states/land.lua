@@ -15,7 +15,7 @@ function land.enter(c)
 
     if c.springs then
         -- bob: immediate crouch, NO upward velocity (that caused overshoot → push look)
-        c.springs.bob.value    = -impact_n * 40   -- was 22, bigger = more visible crouch
+        c.springs.bob.value    = -impact_n * 20   -- was 22, bigger = more visible crouch
         c.springs.bob.velocity = 0
 
         -- squash: immediate spine compression

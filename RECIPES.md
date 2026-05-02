@@ -5,6 +5,22 @@
 
 ---
 
+## TWEEN
+
+```lua
+local Tween = require "src.systems.tween"
+
+local t = Tween.new(0, 1, 0.5, "quad_out")
+t:update(dt)
+-- read: t.value   check: t.done
+
+-- easings: linear, quad_in/out/inout, cubic_in/out/inout,
+--          back_out, elastic_out, bounce_out
+
+-- change target mid-flight (UI hover, health drain):
+t:retarget(newTarget, duration)
+```
+
 ## CHARACTER
 
 ```lua
