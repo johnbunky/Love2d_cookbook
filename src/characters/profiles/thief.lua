@@ -1,7 +1,9 @@
 -- profiles/thief.lua
 return {
     rig        = "humanoid",
-    skin       = "particles",
+
+    skins = { "sketch", "face", "particles"},   -- face on top gives a nice ink portrait
+    color = {0.08, 0.06, 0.05},
 
     -- twitchy, instant response, snappy stop
     accel      = 940,
@@ -21,5 +23,5 @@ return {
 
     idle_breath    = 1.3,
     idle_fidget    = 2.0,
-    color      = {0.75, 0.75, 0.95},
+    -- color      = {0.75, 0.75, 0.95},
 }

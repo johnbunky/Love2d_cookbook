@@ -1,9 +1,10 @@
 -- profiles/man.lua
 return {
     rig        = "humanoid",
-    skins = {
-        "wire", "face",
-    },
+    -- toon: child, duck, cartoon characters
+    skin = "toon",
+    color = {0.4, 0.7, 0.95},
+    toon = { outline_w = 5 },
     -- ============================================================
     -- BODY PROPORTIONS
     -- These override rig defaults. Remove any line to use the default.
@@ -81,5 +82,5 @@ return {
     body_damping   = 9,
 
     -- color (r, g, b)
-    color      = {0.55, 0.95, 0.75},
+    -- color      = {0.55, 0.95, 0.75},
 }

@@ -33,14 +33,13 @@ local DEFAULT_EMITTERS = {
 -- ── internal pool (used when no external emitter is set) ─────────────────────
 
 local function init_state(c)
-    if not c.skin_state then
-        c.skin_state = { pool = {} }
-    end
+    if not c.skin_state            then c.skin_state            = {} end
+    if not c.skin_state.particles  then c.skin_state.particles  = { pool = {} } end
 end
 
 function Particles.update(bones, rig, profile, dt, c)
     init_state(c)
-    local pool = c.skin_state.pool
+    local pool = c.skin_state.particles.pool
     local pp   = profile.particles or {}
     local col  = profile.color
 
@@ -125,7 +124,7 @@ function Particles.draw(bones, rig, profile, camera, c)
 
     -- ── internal pool draw ────────────────────────────────────────────────────
     init_state(c)
-    local pool = c.skin_state.pool
+    local pool = c.skin_state.particles.pool
 
     for _, p in ipairs(pool) do
         if p.new then

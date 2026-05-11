@@ -1,7 +1,11 @@
 -- profiles/troll.lua
 return {
     rig        = "humanoid",
-    skin       = "wire",
+    -- ghost: spirit, magic character, or as a second layer
+    skins = {
+        { name = "ghost", blend = "add", alpha = 0.8 },
+    },
+    color = {0.4, 0.7, 1.0},
     -- heavy, slow to start, hard to stop
     accel      = 280,
     drag       = 3,
@@ -20,5 +24,5 @@ return {
 
     idle_breath    = 0.5,
     idle_fidget    = 0.4,
-    color      = {0.55, 0.80, 0.45},
+    -- color      = {0.55, 0.80, 0.45},
 }

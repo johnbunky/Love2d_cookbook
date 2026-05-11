@@ -59,8 +59,8 @@ end
 -- ── update: blink + expression transition ────────────────────────────────────
 function Face.update(bones, rig, profile, dt, c)
     if not c then return end
-    if not c.skin_state        then c.skin_state = {} end
-    if not c.skin_state.face   then
+    if not c.skin_state       then c.skin_state      = {} end
+    if not c.skin_state.face  then
         c.skin_state.face = {
             blink_timer = 2 + math.random()*3,
             blinking    = false,

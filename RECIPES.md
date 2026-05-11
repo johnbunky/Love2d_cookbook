@@ -21,6 +21,8 @@ t:update(dt)
 t:retarget(newTarget, duration)
 ```
 
+---
+
 ## CHARACTER
 
 ```lua
@@ -160,6 +162,47 @@ s:update(dt, target, stiffness, damping)
 
 ---
 
+## CHAIN
+
+Verlet chain solver. Useful for ponytails, tails, scarves, ropes, tentacles —
+anything that's a sequence of connected points with physics.
+
+```lua
+local Chain = require "src.systems.chain"
+
+local c = Chain.new({
+    segs      = 5,      -- number of segments (points = segs + 1)
+    seg_len   = 10,     -- rest length per segment (world units)
+    gravity   = 280,    -- downward pull per second
+    damping   = 0.982,  -- velocity multiplier per frame
+    stiffness = 0.35,   -- angular stiffness: 0=rope, 0.35=hair, 0.8=rod
+    iters     = 3,      -- constraint iterations (more = stiffer)
+})
+
+Chain.reset(c, rootX, rootY, rootZ)   -- snap straight down, zero velocity
+
+-- every frame — colliders prevent clipping through body:
+local colliders = {
+    { x=hipX, y=hipY, z=pelvisZ, r=12 },
+    { x=hipX, y=hipY, z=chestZ,  r=16 },
+}
+Chain.update(c, dt, rootX, rootY, rootZ, colliders)
+
+-- read points (1=root, #c.pts=tip):
+for i, pt in ipairs(c.pts) do
+    local sx, sy = camera:toScreen(pt.x, pt.y, pt.z)
+end
+```
+
+**Tuning:**
+```
+stiffness 0.0  → pure rope    damping 0.982 → floaty
+stiffness 0.35 → hair         damping 0.96  → settles in ~1s
+stiffness 0.8  → stiff braid  damping 0.90  → snappy
+```
+
+---
+
 ## STATE MACHINE
 
 ```lua
@@ -224,8 +267,8 @@ characters, props, trees, UI, terrain features, anything.
 ```lua
 local Draw = require "src.systems.draw2d"
 
--- project a world bone to screen first:
-local sx, sy = camera:toScreen(bone.x, bone.y, bone.z)
+-- project a world point to screen first:
+local sx, sy = camera:toScreen(wx, wy, wz)
 ```
 
 | Function | Description | Common uses |
@@ -241,9 +284,9 @@ local sx, sy = camera:toScreen(bone.x, bone.y, bone.z)
 | `Draw.opolygon(verts, fill, outline)` | Outlined filled polygon | Custom shapes |
 | `Draw.safe(x,y)` | Returns false if coord is NaN or > 5000px | Guard before draw |
 
-**Note:** Use `Draw.plate` / `Draw.oplate` instead of hand-rolled quads for
-rectangular segments — LÖVE's polygon triangulator produces degenerate triangles
-on short or near-vertical segments. `push/rotate/rectangle` is immune.
+**Note:** Use `Draw.plate` / `Draw.oplate` instead of hand-rolled quads —
+LÖVE's polygon triangulator produces degenerate triangles on short or near-vertical
+segments. `push/rotate/rectangle` is immune.
 
 ---
 
@@ -251,83 +294,94 @@ on short or near-vertical segments. `push/rotate/rectangle` is immune.
 
 A skin decides how a character's skeleton is drawn.
 The skeleton (IK legs, FK arms, near/far sorting) is always the same.
-Only the visual output changes.
 
 ```lua
 -- single skin:
-skin = "soft"    -- "wire" | "soft" | "robot"  (default: "wire")
+skin = "soft"    -- "wire"|"soft"|"robot"|"toon"|"sketch"|"ghost"  (default: "wire")
 
--- layered stack (Option B) — skins draw in order, each on top of the last:
+-- layered stack — draws in order, each on top of the last:
 skins = {
     "soft",
+    "face",
     { name = "particles", blend = "add",   alpha = 0.6 },
+    { name = "ghost",     blend = "add",   alpha = 0.4 },
     { name = "wire",      blend = "alpha", alpha = 0.3 },
 }
 -- blend: "alpha"(default) | "add" | "multiply" | "subtract"
 -- alpha: master opacity 0-1 (default 1)
 ```
 
-The skin stack is lazy-loaded and cached on the character instance —
-no `require` overhead after the first frame.
+Stack is lazy-loaded and cached. Multiple stateful skins coexist safely —
+each owns `c.skin_state.<skinname>`.
 
 ---
 
 ### Built-in skins
 
-**`wire`** — line skeleton, default. No profile setup needed.
+**`wire`** — line skeleton, default. No setup needed.
 
 **`soft`** — outlined capsule body.
-
 ```lua
 skin  = "soft",
-color = { 0.91, 0.76, 0.62 },   -- base color
-
--- optional:
+color = { 0.91, 0.76, 0.62 },
 outline_color = { 0.3, 0.2, 0.15, 1 },
-far_darken    = 0.50,            -- 0 = no dimming, 1 = black
-
-widths = {
-    -- screen pixels, proportional to rig by default
-    leg_top = 10,  leg_bot = 7,  foot      = 5,
-    arm_top =  8,  arm_bot = 6,  hand      = 4,
-    torso_top = 18,              torso_bot = 14,
-},
+far_darken    = 0.50,
+widths = { leg_top=10, leg_bot=7, foot=5, arm_top=8, arm_bot=6, hand=4,
+           torso_top=18, torso_bot=14 },
 ```
 
-**`robot`** — rectangular plates, hexagon head, bolts at joints.
-
+**`robot`** — rectangular plates, hexagon head, bolts.
 ```lua
 skin  = "robot",
-color = { 0.78, 0.82, 0.88 },   -- metal tone
+color = { 0.78, 0.82, 0.88 },
+robot = { joint_size=3.5, joint_color={0.75,0.78,0.82,1} },
+```
 
--- optional:
-outline_color = { 0.10, 0.10, 0.12, 1 },
-far_darken    = 0.45,
+**`toon`** — flat color, thick outline, no shading.
+```lua
+skin  = "toon",
+color = { 0.40, 0.70, 0.95 },
+toon  = { outline_w=5 },
+```
 
-widths = { },   -- same keys as soft
+**`sketch`** — outline only, no fill. Ink style. Pair with `face`.
+```lua
+skins = { "sketch", "face" },
+color = { 0.08, 0.06, 0.05 },
+sketch = { near_w=2.5, far_w=1.2, far_alpha=0.38 },
+```
 
-robot = {
-    joint_size  = 3.5,
-    joint_color = { 0.75, 0.78, 0.82, 1 },
+**`ghost`** — soft glow, no outline. Spirit / energy style.
+```lua
+-- standalone:
+skin  = "ghost",
+color = { 0.55, 0.80, 1.0 },
+ghost = { alpha=0.55, core_alpha=0.30, glow_scale=1.5 },
+
+-- aura over soft body:
+skins = { "soft", { name="ghost", blend="add", alpha=0.4 } },
+```
+
+**`particles`** — emits particles from bone positions.
+```lua
+skin  = "particles",
+color = { 1, 0.6, 0.2 },
+particles = {
+    count=1, lifetime=0.45, speed=18, r=3.5, gravity=30,
+    emit_bones = { "near_hand", "far_hand", "near_foot", "far_foot" },
+    -- emitter = emitters.sparks   -- bridge to your existing emitter system
 },
 ```
 
-**`particles`** — emits particles from bone positions each frame.
-
+**`face`** — expressive face layer. Always place last in the stack.
+Reacts to state automatically (idle/walk/jump/fall/land/sit).
+Face features are placed in world space — works in all three projections.
 ```lua
-skin  = "particles",
-color = { 1, 0.6, 0.2 },   -- base particle color
-
-particles = {
-    count      = 1,     -- particles emitted per bone per frame
-    lifetime   = 0.45,  -- seconds
-    speed      = 18,    -- px/s
-    r          = 3.5,   -- initial radius px
-    gravity    = 30,    -- downward pull px/s²
-    emit_bones = { "near_hand", "far_hand", "near_foot", "far_foot" },
-
-    -- bridge to your existing emitter system (optional):
-    -- emitter = emitters.sparks   -- skin calls emitter.spawn(sx,sy) each frame
+skins = { "soft", "face" },
+face = {
+    fwd    = 9,    -- face plane distance in front of head (world units)
+    spread = 6,    -- half eye separation
+    rise   = 3,    -- eye height above head center
 },
 ```
 
@@ -335,60 +389,49 @@ particles = {
 
 ### Secondary motion
 
-Spring-driven body parts that react to physics automatically.
-Add a `secondary` table to any profile to enable:
+Spring and chain-driven body parts. Tick automatically in `character:update()`.
 
 ```lua
 secondary = {
     breast = {
-        fwd        = 12,    -- forward offset from chest center (px)
-        r          = 7,     -- draw radius in soft skin (px)
-        follow     = 0.10,  -- vel.z multiplier → spring target
-        stiffness  = 14,    -- spring stiffness
-        damping    = 6,     -- spring damping
+        fwd       = 12,    -- forward offset from chest (px)
+        r         = 7,     -- draw radius in soft skin
+        follow    = 0.10,  -- vel.z multiplier → spring target
+        stiffness = 8,
+        damping   = 5,
+    },
+    ponytail = {
+        segs      = 5,
+        seg_len   = 10,    -- world units
+        back      = 6,     -- root behind head
+        r         = 4,     -- draw radius at root
+        gravity   = 180,
+        damping   = 0.96,
+        stiffness = 0.35,
     },
 },
 ```
 
-Springs are ticked automatically in `character:update()` — no extra wiring needed.
-The skin reads the result from the bones table (`bones.breast_l`, `bones.breast_r`).
-Only drawn when the skin supports it (`soft` does, `wire` and `robot` don't).
-
-**Tuning guide:**
-```
-follow 0.05   → subtle, barely noticeable
-follow 0.10   → natural, reacts clearly to jumps and landings
-follow 0.20   → exaggerated, cartoon physics
-
-stiffness 14  damping 6   → bouncy, some overshoot (good for secondary)
-stiffness 20  damping 12  → snappier, less bounce
-```
+Bones appear in the table only when defined. `soft` draws breast + ponytail.
+Body collision spheres for ponytail are computed automatically from rig dimensions.
 
 ---
 
 ### Skin interface
 
-Every skin is a module with one required function:
-
 ```lua
--- Skin.draw(bones, rig, profile, camera, c)
-function MySkin.draw(bones, rig, profile, camera, _c)
-    local sx, sy = camera:toScreen(bone.x, bone.y, bone.z)
-    -- draw with love.graphics.* or Draw2d
-end
-```
+-- required:
+function MySkin.draw(bones, rig, profile, camera, c) end
 
-Stateful skins (e.g. particles) also declare:
-
-```lua
--- called automatically before draw() each frame
+-- optional — stateful skins only:
 function MySkin.update(bones, rig, profile, dt, c)
-    -- store state in c.skin_state = {}
+    if not c.skin_state         then c.skin_state         = {} end
+    if not c.skin_state.myskin  then c.skin_state.myskin  = {} end
+    local s = c.skin_state.myskin
 end
 ```
 
-**Bones table** — all world-space `{x,y,z}`, project with `camera:toScreen`:
-
+**Bones** — world-space `{x,y,z}`, project with `camera:toScreen`:
 ```
 spine:       hip  chest  head
 near arm:    near_shoulder  near_elbow  near_hand
@@ -396,48 +439,52 @@ far arm:     far_shoulder   far_elbow   far_hand
 near leg:    near_hip  near_knee  near_foot
 far leg:     far_hip   far_knee   far_foot
 bars:        hip_left  hip_right  shoulder_left  shoulder_right
-orientation: facing (1/-1)   left_near (bool)
-
-secondary (present only when profile.secondary defines them):
-             breast_l  breast_r  ponytail  belly
+orientation: facing(1/-1)  left_near(bool)
+secondary:   breast_l  breast_r  ponytail  belly  (when defined)
 ```
 
 **Rules:**
-- Always set your own color before every draw call — never assume previous state
-- Draw order: far limbs → torso → near limbs → secondary → head
-- Use `Draw.safe(sx,sy)` to guard projections before drawing
+- Always set your own color before every draw call
+- Draw order: far → torso → near → secondary → head
+- Use `Draw.safe(sx,sy)` to guard projections
 - Use `Draw.plate` not hand-rolled polygons for rectangular segments
+- Namespace state: `c.skin_state.<skinname>`
 
-**Debug overlay:** hold **R** in `robot` skin for a full bone console.
-Copy `draw_debug()` from `robot.lua` into any skin.
+**Debug:** hold **R** in `robot` skin — full bone console, world+screen coords.
 
 ---
 
-### Writing a new skin
+### Minimal new skin template
 
 ```lua
 local MySkin = {}
 local Draw = require "src.systems.draw2d"
-
 local function proj(b, cam) return cam:toScreen(b.x, b.y, b.z) end
 
 function MySkin.draw(bones, rig, profile, camera, _c)
-    local col = profile.color
-    local far = profile.far_darken or 0.5
-    local fill    = { col[1],     col[2],     col[3],     1    }
-    local outline = { col[1]*0.3, col[2]*0.3, col[3]*0.3, 1    }
-    local far_fill = { col[1]*far, col[2]*far, col[3]*far, 0.85 }
+    local col     = profile.color
+    local far     = profile.far_darken or 0.5
+    local fill    = {col[1],     col[2],     col[3],     1   }
+    local outline = {col[1]*0.3, col[2]*0.3, col[3]*0.3, 1   }
+    local ffill   = {col[1]*far, col[2]*far, col[3]*far, 0.85}
 
-    -- far layer
     local function limb(a, b, r1, r2, f, o)
-        local ax,ay = proj(a, camera);  local bx,by = proj(b, camera)
+        local ax,ay = proj(a,camera); local bx,by = proj(b,camera)
         Draw.ocapsule(ax,ay,r1, bx,by,r2, f, o)
     end
-    limb(bones.far_shoulder, bones.far_elbow, 5, 4, far_fill, outline)
-    -- ... other far limbs ...
 
-    -- torso, near limbs, head ...
-    Draw.ball(proj(bones.head, camera), rig.head_r or 17, fill, outline)
+    limb(bones.far_shoulder,  bones.far_elbow,  5,4, ffill, outline)
+    limb(bones.far_elbow,     bones.far_hand,   4,3, ffill, outline)
+    limb(bones.far_hip,       bones.far_knee,   7,5, ffill, outline)
+    limb(bones.far_knee,      bones.far_foot,   5,3, ffill, outline)
+    limb(bones.hip,           bones.chest,     14,16, fill, outline)
+    limb(bones.near_hip,      bones.near_knee,  7,5,  fill, outline)
+    limb(bones.near_knee,     bones.near_foot,  5,3,  fill, outline)
+    limb(bones.near_shoulder, bones.near_elbow, 5,4,  fill, outline)
+    limb(bones.near_elbow,    bones.near_hand,  4,3,  fill, outline)
+
+    local hdx,hdy = proj(bones.head, camera)
+    Draw.ball(hdx, hdy, rig.head_r or 17, fill, outline)
 end
 
 return MySkin
@@ -471,12 +518,12 @@ Physics.jump(entity)         -- upward impulse
 
 ## KNOWN ROUGH EDGES
 
-- Hip sway animation missing on humanoid (walk.lua has the data, draw doesn't use it yet)
-- Quadruped/bird/spider not tested in cookbook context yet
+- Quadruped/bird/spider profiles not tested in cookbook context yet
 - Trees not ported from characters project
 - No 2D camera / character bridge (for sidescroll platformer style)
 - `src/states/examples/` — most examples are sketches, not recipes yet
-- Ponytail and belly secondary motion: architecture designed, not yet implemented
+- Belly secondary motion: architecture designed, not yet implemented
+- Robot skin: degenerate triangle artifact in some edge cases (tracking open)
 
 ---
 
