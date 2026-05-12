@@ -1,0 +1,39 @@
+name: Publish to itch.io
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build .love file
+        run: zip -9 -r cookbook.love . -x "*.git*" -x ".github/*" -x "*.love" -x "README.md" -x "RECIPES.md"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cookbook
+          path: cookbook.love
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cookbook
+
+      - name: Push to itch.io
+        uses: josephbmanley/butler-publish-itchio-action@master
+        env:
+          BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
+          CHANNEL: love
+          ITCH_GAME: love2d-cookbook
+          ITCH_USER: johnbunky
+          PACKAGE: cookbook.love
